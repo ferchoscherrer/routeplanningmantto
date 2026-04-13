@@ -1,0 +1,10 @@
+/* Enter your custom styles here */
+
+/* Fuerza a que los contenedores de la app ocupen todo el alto */
+html, body, #content, #container {
+    height: 100% !important;
+}
+
+.sapUiVbmGeoMap {
+    min-height: 400px; /* Asegura un mínimo de visibilidad */
+}

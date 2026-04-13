@@ -1,0 +1,70 @@
+<mvc:View 
+    controllerName="routeplanningmantto.controller.Main"
+    xmlns:mvc="sap.ui.core.mvc" 
+    displayBlock="true"
+    xmlns="sap.m"
+    xmlns:tnt="sap.tnt"
+    xmlns:vbm="sap.ui.vbm"
+    xmlns:core="sap.ui.core">
+    
+    <tnt:ToolPage id="toolPage">
+        <tnt:header>
+            <tnt:ToolHeader>
+                <Button icon="sap-icon://menu2" type="Transparent" press=".onSideNavButtonPress" />
+                <Title text="Planificador de Mantenimiento" />
+                <ToolbarSpacer />
+            </tnt:ToolHeader>
+        </tnt:header>
+
+        <tnt:sideContent>
+            <tnt:SideNavigation id="sideNavigation">
+                <tnt:item>
+                    <tnt:NavigationList>
+                        <tnt:NavigationListItem text="Mapa Principal" icon="sap-icon://map" press=".onCenterHome" />
+                    </tnt:NavigationList>
+                </tnt:item>
+                
+                <tnt:fixedItem>
+                    <tnt:NavigationList>
+                        <tnt:NavigationListItem text="Filtros de Ruta" icon="sap-icon://filter" enabled="false" />
+                    </tnt:NavigationList>
+                </tnt:fixedItem>
+            </tnt:SideNavigation>
+        </tnt:sideContent>
+
+        <tnt:mainContents>
+            <VBox height="100%">
+                <Toolbar>
+                    <Label text="Zona:" class="sapUiSmallMarginBegin" />
+                    <Select id="selectZona" change=".onZonaChange">
+                        <core:Item key="CDMX" text="Ciudad de México" />
+                        <core:Item key="YUC" text="Yucatán" />
+                    </Select>
+                    <ToolbarSeparator />
+                    <Label text="Mecánico:" />
+                    <ComboBox items="{localModel>/mecanicos}">
+                        <core:Item key="{localModel>id}" text="{localModel>nombre}" />
+                    </ComboBox>
+                    <ToolbarSpacer />
+                    <Button text="Optimizar Rutas" type="Emphasized" press=".onOptimizarRutas" />
+                </Toolbar>
+
+                <vbm:GeoMap 
+                    id="mainGeoMap" 
+                    width="100%" 
+                    height="100%" 
+                    initialZoom="12" 
+                    initialPosition="-99.1332;19.4326;0">
+                    <vbm:vos>
+                        <vbm:Spots items="{localModel>/puntosMantenimiento}">
+                            <vbm:Spot 
+                                position="{localModel>pos}" 
+                                type="{localModel>type}" 
+                                tooltip="{localModel>tooltip}" />
+                        </vbm:Spots>
+                    </vbm:vos>
+                </vbm:GeoMap>
+            </VBox>
+        </tnt:mainContents>
+    </tnt:ToolPage>
+</mvc:View>

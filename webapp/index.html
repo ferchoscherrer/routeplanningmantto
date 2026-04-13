@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Planificador de Mantenimiento</title>
+    <style>
+        /* IMPORTANTE: El mapa necesita que todos los padres tengan 100% de altura */
+        html, body, body > div, #container, #container-uiarea, #content {
+            height: 100% !important;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+    <script
+        id="sap-ui-bootstrap"
+        src="resources/sap-ui-core.js"
+        data-sap-ui-theme="sap_horizon"
+        data-sap-ui-resource-roots='{
+            "routeplannigmantto": "./" 
+        }'
+        data-sap-ui-on-init="module:sap/ui/core/ComponentSupport"
+        data-sap-ui-compat-version="edge"
+        data-sap-ui-async="true"
+        data-sap-ui-frame-options="trusted"
+    ></script>
+</head>
+<body class="sapUiBody" id="content">
+    <div
+        style="height: 100%;"
+        data-sap-ui-component
+        data-name="routeplanningmantto"
+        data-id="container"
+        data-settings='{"id" : "routeplanningmantto"}'
+        data-handle-validation="true"
+    ></div>
+</body>
+</html>
