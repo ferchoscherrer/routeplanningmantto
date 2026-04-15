@@ -5,6 +5,6 @@
     xmlns="sap.m">
     <Shell id="shell">
         <App id="app">
-            </App>
+        </App>
     </Shell>
 </mvc:View>

@@ -1,10 +1,24 @@
 /* Enter your custom styles here */
 
-/* Fuerza a que los contenedores de la app ocupen todo el alto */
-html, body, #content, #container {
+#googleMap {
+    min-height: 500px;
     height: 100% !important;
+    width: 100% !important;
 }
 
-.sapUiVbmGeoMap {
-    min-height: 400px; /* Asegura un mínimo de visibilidad */
+/* Evita que el contenedor HTML colapse */
+.sapUiVLayout, .sapMVBox {
+    height: 100%;
+}
+
+#mapMonthDiv {
+    height: 100% !important;
+    min-height: 500px; /* Forzamos una altura mínima para pruebas */
+    width: 100%;
+    background-color: #f0f0f0; /* Si ves gris, el div está ahí, si ves blanco, el div mide 0px */
+}
+
+/* Asegurar que los contenedores de UI5 dejen pasar el alto */
+.sapMVBox, .sapMHBox {
+    height: 100%;
 }

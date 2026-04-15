@@ -1,0 +1,19 @@
+{
+    "StartDate": "2026-04-14T09:00:00",
+    "Mecanicos": [
+        { "Id": "M1", "Nombre": "Mecánico A", "DistanciaTotal": "0.0", "TiempoEstimado": "0m", "PorcentajeOcupacion": 0, "Especialidad": "Senior Norte", "Zona": "Tlalnepantla", "Citas": [] },
+        { "Id": "M2", "Nombre": "Mecánico B", "DistanciaTotal": "0.0", "TiempoEstimado": "0m", "PorcentajeOcupacion": 0, "Especialidad": "Especialista Centro", "Zona": "Naucalpan", "Citas": [] }
+    ],
+    "ServiciosPendientes": [
+        { "Id": "S1", "Cliente": "Walmart Satélite", "Equipo": "Clima Central 01", "CP": "53100", "Direccion": "Cto. Centro Comercial", "Lat": 19.512, "Lng": -99.234, "Prioridad": 1 },
+        { "Id": "S2", "Cliente": "Torre Azul", "Equipo": "Elevador Principal", "CP": "53100", "Direccion": "Cto. Economistas", "Lat": 19.515, "Lng": -99.230, "Prioridad": 2 },
+        { "Id": "S3", "Cliente": "Plaza Arboledas", "Equipo": "Subestación T1", "CP": "54026", "Direccion": "Av. Arboledas", "Lat": 19.545, "Lng": -99.215, "Prioridad": 1 },
+        { "Id": "S4", "Cliente": "Residencial Valle", "Equipo": "Bomba Hidráulica", "CP": "54026", "Direccion": "Calle de los Jinetes", "Lat": 19.548, "Lng": -99.210, "Prioridad": 3 },
+        { "Id": "S5", "Cliente": "Hospital San José", "Equipo": "Planta de Emergencia", "CP": "54000", "Direccion": "Tlalnepantla Centro", "Lat": 19.538, "Lng": -99.194, "Prioridad": 1 },
+        { "Id": "S6", "Cliente": "Oficinas Tlalne", "Equipo": "Aire Piso 3", "CP": "54000", "Direccion": "Av. Mario Colín", "Lat": 19.540, "Lng": -99.190, "Prioridad": 2 },
+        { "Id": "S7", "Cliente": "Fábrica Aceros", "Equipo": "Grúa Viajera", "CP": "54030", "Direccion": "San Nicolás", "Lat": 19.550, "Lng": -99.180, "Prioridad": 1 },
+        { "Id": "S8", "Cliente": "Logística Express", "Equipo": "Puerta Automatizada", "CP": "54030", "Direccion": "Vía Gustavo Baz", "Lat": 19.555, "Lng": -99.185, "Prioridad": 2 },
+        { "Id": "S9", "Cliente": "Centro Médico N.", "Equipo": "Elevador Camillero", "CP": "53100", "Direccion": "Av. Fuentes", "Lat": 19.508, "Lng": -99.238, "Prioridad": 1 },
+        { "Id": "S10", "Cliente": "Gym Total", "Equipo": "Extracción Humos", "CP": "54026", "Direccion": "Av. de la Hacienda", "Lat": 19.542, "Lng": -99.218, "Prioridad": 3 }
+    ]
+}

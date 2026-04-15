@@ -1,0 +1,92 @@
+<core:FragmentDefinition xmlns="sap.m" xmlns:core="sap.ui.core" xmlns:layout="sap.ui.layout">
+    <Dialog 
+        title="Planificación Mensual: Consola de Despacho" 
+        contentWidth="100%" 
+        contentHeight="100%"
+        stretch="true"> 
+        <content>
+            <ScrollContainer height="100%" width="100%" vertical="true" horizontal="false">
+                <layout:VerticalLayout width="100%" class="sapUiContentPadding">
+                    
+                    <Table id="tableEquipos" items="{path: 'localModel>/ServiciosPendientes', sorter: {path: 'CP', group: true}}">
+                        <headerToolbar>
+                            <OverflowToolbar>
+                                <Title text="Equipos Pendientes por Código Postal" level="H4" />
+                                <ToolbarSpacer />
+                                <SearchField width="30%" search=".onSearchEquipo" />
+                            </OverflowToolbar>
+                        </headerToolbar>
+                        <columns>
+                            <Column width="35%"><Text text="Equipo / Cliente" /></Column>
+                            <Column hAlign="Center"><Text text="Ubicación (CP)" /></Column>
+                            <Column hAlign="End" width="30%"><Text text="Asignación y Disponibilidad" /></Column>
+                        </columns>
+                        <items>
+                            <ColumnListItem>
+                                <cells>
+                                    <VBox>
+                                        <Text text="{localModel>Equipo}" fontWeight="Bold" />
+                                        <Text text="{localModel>Cliente}" fontSize="0.8rem" />
+                                    </VBox>
+                                    <ObjectStatus text="{localModel>CP}" state="Indication05" />
+                                    <Select 
+                                        width="100%"
+                                        items="{localModel>/Mecanicos}" 
+                                        selectedKey="{localModel>MecanicoAsignadoId}"
+                                        change=".onMecanicoChange">
+                                        <core:Item 
+                                            key="{localModel>Id}" 
+                                            text="{localModel>Nombre}" 
+                                            enabled="{localModel>Disponible}"/> 
+                                    </Select>
+                                </cells>
+                            </ColumnListItem>
+                        </items>
+                    </Table>
+
+                    <Panel headerText="Monitor de Capacidad Mensual (KPI)" class="sapUiMediumMarginTop">
+                        <List items="{localModel>/Mecanicos}">
+                            <CustomListItem>
+                                <HBox alignItems="Center" justifyContent="SpaceBetween" class="sapUiSmallMargin">
+                                    <VBox width="25%">
+                                        <Text text="{localModel>Nombre}" fontWeight="Bold" />
+                                        <ObjectStatus 
+                                            text="{= ${localModel>Disponible} ? 'Disponible' : 'CAPACIDAD MÁXIMA' }" 
+                                            state="{= ${localModel>Disponible} ? 'Success' : 'Error' }" />
+                                    </VBox>
+                                    
+                                    <VBox width="55%">
+                                        <ProgressIndicator
+                                            percentValue="{localModel>PorcentajeOcupacion}"
+                                            displayValue="{localModel>PorcentajeOcupacion}% mensual"
+                                            state="{localModel>EstadoCarga}"
+                                            showValue="true" />
+                                        
+                                        <HBox class="sapUiTinyMarginTop">
+                                            <core:Icon src="sap-icon://shipping-status" size="0.9rem" color="#666666" />
+                                            <Text text="{localModel>DistanciaTotal} km totales" class="sapUiTinyMarginBegin" />
+                                            <core:Icon src="sap-icon://history" size="0.9rem" color="#666666" class="sapUiSmallMarginBegin" />
+                                            <Text text="{localModel>TiempoEstimado} traslados" class="sapUiTinyMarginBegin" />
+                                        </HBox>
+                                    </VBox>
+
+                                    <VBox hAlign="End" width="15%">
+                                        <Title text="{localModel>ServiciosAsignadosCount} / 10" level="H4" />
+                                        <Text text="Equipos" fontSize="0.7rem" />
+                                    </VBox>
+                                </HBox>
+                            </CustomListItem>
+                        </List>
+                    </Panel>
+
+                </layout:VerticalLayout>
+            </ScrollContainer>
+        </content>
+        <beginButton>
+            <Button text="Finalizar Planificación" type="Emphasized" press=".onConfirmAssignment" />
+        </beginButton>
+        <endButton>
+            <Button text="Cerrar sin Guardar" press=".onCloseDialog" />
+        </endButton>
+    </Dialog>
+</core:FragmentDefinition>

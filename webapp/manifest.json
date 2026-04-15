@@ -51,7 +51,13 @@
       "minUI5Version": "1.146.0",
       "libs": {
         "sap.m": {},
-        "sap.ui.core": {}
+        "sap.ui.core": {},
+        "sap.ui.unified": {},
+      "sap.ui.layout": {},
+      "sap.tnt": {},
+        "sap.ui.vbm": {
+        "lazy": false
+      }
       }
     },
     "contentDensities": {
@@ -59,6 +65,10 @@
       "cozy": true
     },
     "models": {
+      "db": {
+            "type": "sap.ui.model.json.JSONModel",
+            "uri": "model/db.json"
+        },
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
@@ -92,12 +102,25 @@
           "target": [
             "TargetMain"
           ]
+        },
+        {
+          "name": "RoutePlanMonth",
+          "pattern": "RoutePlanMonth",
+          "target": [
+            "TargetRoutePlanMonth"
+          ]
         }
       ],
       "targets": {
         "TargetMain": {
           "id": "Main",
-          "name": "Main"
+          "name": "Main",
+          "viewLevel": 1
+        },
+        "TargetRoutePlanMonth": {
+          "id": "RoutePlanMonth",
+          "name": "RoutePlanMonth",
+          "viewLevel": 2
         }
       }
     },

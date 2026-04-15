@@ -4,27 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Planificador de Mantenimiento</title>
+    <title>Planificador Mantenimiento - Google Maps</title>
     <style>
-        /* IMPORTANTE: El mapa necesita que todos los padres tengan 100% de altura */
-        html, body, body > div, #container, #container-uiarea, #content {
+        /* Crítico para que Google Maps se vea: todos los padres deben medir 100% */
+        html, body, #content, #container, #container-uiarea, .sapUiBody {
             height: 100% !important;
             margin: 0;
             padding: 0;
+            overflow: hidden;
+        }
+        /* Estilo específico para el div de Google */
+        #googleMap {
+            height: 100% !important;
+            width: 100% !important;
         }
     </style>
-    <script
-        id="sap-ui-bootstrap"
+   <script id="sap-ui-bootstrap"
         src="resources/sap-ui-core.js"
         data-sap-ui-theme="sap_horizon"
-        data-sap-ui-resource-roots='{
-            "routeplannigmantto": "./" 
+        data-sap-ui-resourceroots='{
+            "routeplanningmantto": "./"
         }'
-        data-sap-ui-on-init="module:sap/ui/core/ComponentSupport"
-        data-sap-ui-compat-version="edge"
-        data-sap-ui-async="true"
-        data-sap-ui-frame-options="trusted"
-    ></script>
+        data-sap-ui-oninit="module:sap/ui/core/ComponentSupport"
+        data-sap-ui-async="true">
+        function initMap() { 
+        console.log("Google Maps API cargada globalmente"); 
+    }
+    </script>
 </head>
 <body class="sapUiBody" id="content">
     <div
@@ -33,7 +39,7 @@
         data-name="routeplanningmantto"
         data-id="container"
         data-settings='{"id" : "routeplanningmantto"}'
-        data-handle-validation="true"
-    ></div>
+        data-handle-validation="true">
+    </div>
 </body>
 </html>

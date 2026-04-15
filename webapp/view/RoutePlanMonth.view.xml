@@ -1,0 +1,130 @@
+<mvc:View 
+    controllerName="routeplanningmantto.controller.RoutePlanMonth"
+    xmlns:mvc="sap.ui.core.mvc" 
+    displayBlock="true"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:tnt="sap.tnt"
+    xmlns:unified="sap.ui.unified"
+    xmlns:dnd="sap.ui.core.dnd">
+    
+    <Page title="Planeación Estratégica Mensual" showNavButton="true" navButtonPress=".onNavBack">
+        <headerContent>
+        <Button text="Agrupar por CP" icon="sap-icon://group-2" press=".onOpenCPGrouping" />
+            <Button text="Simular Optimización" type="Emphasized" icon="sap-icon://simulate" press=".onRunOptimization" />
+        </headerContent>
+        <content>
+            <VBox height="100%" renderType="Bare">
+                
+                <HBox height="65%" renderType="Bare">
+                    <VBox width="350px" class="sapUiSmallMargin">
+                        
+                        <Panel headerText="Métricas de Optimización (IA)" expandable="true" expanded="true">
+                            <VBox>
+                                <HBox justifyContent="SpaceBetween" class="sapUiTinyMarginBottom">
+                                    <Label text="Eficiencia de Ruta:" />
+                                    <ObjectStatus text="94.2%" state="Success" />
+                                </HBox>
+                                <ProgressIndicator percentValue="94" displayValue="94%" state="Success" class="sapUiSmallMarginBottom" />
+                                
+                                <HBox justifyContent="SpaceBetween">
+                                    <Label text="Ahorro Est. Combustible:" />
+                                    <ObjectStatus text="$12,450 MXN" state="Information" />
+                                </HBox>
+                                <HBox justifyContent="SpaceBetween">
+                                    <Label text="Prob. Cumplimiento:" />
+                                    <ObjectStatus text="98%" state="Success" />
+                                </HBox>
+                            </VBox>
+                        </Panel>
+
+                        <VBox class="sapUiMediumMarginTop" style="border-top: 1px solid #dcdcdc;">
+                            <Label text="Filtrar por Mecánico:" class="sapUiTinyMarginTop sapUiTinyMarginBottom" />
+                            <Select id="filterMecanico" width="100%" change=".onFilterChange" class="sapUiSmallMarginBottom">
+                                <core:Item key="ALL" text="Ver todos los grupos" />
+                                <core:Item key="M1" text="Mecánico A (Ruta Norte)" />
+                                <core:Item key="M2" text="Mecánico B (Ruta Centro)" />
+                            </Select>
+                        </VBox>
+
+                        <Title text="Asignación Manual de Servicios" level="H4" class="sapUiSmallMarginTop" />
+                        <List id="listAsignacion" items="{localModel>/servicios}" class="sapUiTinyMarginTop">
+                            <dragDropConfig>
+                                <dnd:DragInfo sourceAggregation="items" />
+                                <dnd:DropInfo targetAggregation="items" dropPosition="Between" drop=".onDropService" />
+                            </dragDropConfig>
+                            <items>
+                                <ObjectListItem 
+                                    title="{localModel>Cliente}" 
+                                    number="{localModel>Prioridad}" 
+                                    numberUnit="Prio"
+                                    type="Active"
+                                    mouseEnter=".onItemHover"
+                                    mouseLeave=".onItemLeave">
+                                    <attributes>
+                                        <ObjectAttribute title="Mecánico" text="{localModel>MecanicoAsignado}" />
+                                    </attributes>
+                                </ObjectListItem>
+                            </items>
+                        </List>
+                    </VBox>
+
+                    <VBox height="100%" width="100%">
+                        <core:HTML id="mapMonthContainer" content='&lt;div id="mapMonthDiv" style="height: 100%; width: 100%; border-left: 1px solid #ddd;"&gt;&lt;/div&gt;'>
+                            <core:layoutData>
+                                <FlexItemData growFactor="1" />
+                            </core:layoutData>
+                        </core:HTML>
+                    </VBox>
+                </HBox>
+
+                
+
+            </VBox>
+            <VBox height="35%" width="100%" style="border-top: 2px solid #3f51b5;">
+                    <PlanningCalendar
+    id="calendarMonthly"
+    startDate="{localModel>/StartDate}"
+    rows="{localModel>/Mecanicos}"
+    viewKey="D"
+    appointmentSelect=".onAppointmentSelect"
+    appointmentHeight="Regular"
+    appointmentsVisualization="Standard">
+    <views>
+        <PlanningCalendarView 
+            key="D" 
+            intervalType="Day" 
+            description="Vista Diaria" 
+            intervalsS="1" 
+            intervalsM="2" 
+            intervalsL="3" />
+            
+        <PlanningCalendarView 
+            key="W" 
+            intervalType="Day" 
+            description="Vista Semanal" 
+            intervalsS="3" 
+            intervalsM="5" 
+            intervalsL="7" />
+    </views>
+    <rows>
+        <PlanningCalendarRow
+            title="{localModel>Nombre}"
+            text="{localModel>Especialidad}"
+            appointments="{path: 'localModel>Citas', templateShareable: false}">
+            <appointments>
+                <unified:CalendarAppointment
+                    startDate="{localModel>startDate}"
+                    endDate="{localModel>endDate}"
+                    title="{localModel>title}"
+                    text="{localModel>text}"
+                    type="{localModel>type}"
+                    icon="{localModel>icon}" />
+            </appointments>
+        </PlanningCalendarRow>
+    </rows>
+</PlanningCalendar>
+                </VBox>
+        </content>
+    </Page>
+</mvc:View>
