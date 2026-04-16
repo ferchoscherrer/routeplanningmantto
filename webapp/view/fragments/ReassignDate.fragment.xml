@@ -1,0 +1,15 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core">
+    <SelectDialog
+        title="Seleccionar Nueva Fecha"
+        noDataText="No hay fechas disponibles"
+        confirm=".onConfirmReassignDate"
+        items="{localModel>/FechasDisponibles}">
+        <StandardListItem
+            title="{localModel>fechaTexto}"
+            description="{localModel>diaSemana}"
+            icon="sap-icon://calendar"
+            type="Active" />
+    </SelectDialog>
+</core:FragmentDefinition>
