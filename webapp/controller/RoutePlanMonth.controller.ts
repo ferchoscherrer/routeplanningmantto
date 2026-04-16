@@ -30,6 +30,8 @@ export default class RoutePlanMonth extends Controller {
     public onInit(): void {
         const oComponent = this.getOwnerComponent();
         const oDbModel = oComponent?.getModel("db") as JSONModel;
+        const oRouter = UIComponent.getRouterFor(this);
+    oRouter.getRoute("RoutePlanMonth")?.attachPatternMatched(this._onRouteMatched, this);
 
         if (oDbModel) {
             if (oDbModel.getProperty("/Mecanicos")) {
@@ -62,6 +64,16 @@ export default class RoutePlanMonth extends Controller {
             }
         });
     });
+}
+
+private _onRouteMatched(): void {
+    // Cada vez que entramos, invalidamos la referencia vieja para forzar inicio limpio
+    this._map = null; 
+
+    // Esperamos un momento a que SAPUI5 termine de dibujar la vista en el navegador
+    setTimeout(() => {
+        this._initMap();
+    }, 400); 
 }
 
 
@@ -208,38 +220,31 @@ public onViewChange(oEvent: any): void {
         }, 300);
     }
 
-    private _initMap(): void {
+   private _initMap(): void {
     const mapDiv = document.getElementById("mapMonthDiv");
-    
-    // Si no hay div o ya hay mapa, no hacemos nada
-    if (!mapDiv || !window.google || this._map) return;
+    if (!mapDiv || !window.google) return;
 
-    // 1. Crear la instancia del mapa
-    // Usamos BASE_COORDS como centro inicial mientras se geocodifica la real
-    this._map = new window.google.maps.Map(mapDiv, {
-        center: this.BASE_COORDS, 
-        zoom: 13,
-        mapTypeId: 'roadmap',
-        styles: [ /* Tus estilos personalizados si tienes */ ]
-    });
-
+    // --- PASO CLAVE: Limpiar el div por completo ---
+    mapDiv.innerHTML = ""; 
     mapDiv.style.backgroundColor = "transparent";
 
-    // 2. Evento IDLE: Solo se dispara cuando el mapa terminó de cargar
+    // Forzamos la recreación del objeto
+    this._map = new window.google.maps.Map(mapDiv, {
+        center: this.BASE_COORDS,
+        zoom: 13,
+        mapTypeId: 'roadmap'
+    });
+
     window.google.maps.event.addListenerOnce(this._map, 'idle', () => {
-        // Dibujamos las rutas globales (las de colores)
         this._simulateProfessionalRoutes(false);
     });
 
-    // 3. INICIALIZAR BASE (Mariano Escobedo 69)
-    // Esta función geocodifica, guarda en this._baseCoords y llama a _drawBaseMarker()
     this.initBaseLocation().then(() => {
-        // Opcional: Centrar el mapa en la base real una vez obtenida
-        if (this._baseCoords) {
-            this._map.setCenter(this._baseCoords);
-        }
+        if (this._baseCoords) this._map.setCenter(this._baseCoords);
     });
 }
+
+
     // --- LÓGICA DE RUTAS Y OPTIMIZACIÓN ---
 
     private _simulateProfessionalRoutes(bOptimized: boolean): void {
@@ -979,6 +984,12 @@ private _drawBaseMarker(oCoords: { lat: number, lng: number }): void {
     oBaseMarker.addListener("click", () => {
         infoWindow.open(this._map, oBaseMarker);
     });
+}
+
+public onExit(): void {
+    if (this._map) {
+        this._map = null;
+    }
 }
 
 }

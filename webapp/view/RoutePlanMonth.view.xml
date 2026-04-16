@@ -29,7 +29,7 @@
     id="mapMonthContainer" 
     preferDOM="true"
     afterRendering=".onMapContainerRendered"
-    content='&lt;div id="mapMonthDiv" style="height: 600px; width: 100%; background-color: red; min-height: 600px; position: relative;"&gt;&lt;/div&gt;'>
+    content='&lt;div id="mapMonthDiv" style="height: 600px; width: 100%; min-height: 600px; position: relative;"&gt;&lt;/div&gt;'>
 </core:HTML>
         </VBox>
 
