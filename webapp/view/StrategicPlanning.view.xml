@@ -1,0 +1,125 @@
+<mvc:View 
+    controllerName="routeplanningmantto.controller.StrategicPlanning"
+    xmlns:mvc="sap.ui.core.mvc" 
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:mc="sap.suite.ui.microchart"> 
+
+    <Page title="Planeación Estratégica Logística" backgroundDesign="List" enableScrolling="false">
+        <content>
+            <VBox width="100%" height="100%" renderType="Bare">
+                
+                <HBox class="sapUiSmallMargin" wrap="Wrap" justifyContent="Start" style="flex-shrink: 0;">
+                    <VBox class="metricCardSmall">
+                        <Text text="Equipos" class="metricLabel" />
+                        <Title text="{db>/TotalEquipos}" titleStyle="H2" class="metricValue" />
+                    </VBox>
+                    <VBox class="metricCardSmall">
+                        <Text text="Distancia" class="metricLabel" />
+                        <Title text="{db>/TotalKm} km" titleStyle="H2" class="metricValue" />
+                    </VBox>
+                    <VBox class="metricCardSmall">
+                        <Text text="Rutas" class="metricLabel" />
+                        <Title text="{db>/TotalRutas}" titleStyle="H2" class="metricValue" />
+                    </VBox>
+                    <VBox class="metricCardSmall">
+                        <Text text="Mecánicos" class="metricLabel" />
+                        <VBox spacing="0">
+                            <Title text="{db>/TotalMecanicos}" titleStyle="H2" class="metricValue" />
+                            <Text text="{db>/TotalSinAsignar} sin asignar" class="metricSubLabel" />
+                        </VBox>
+                    </VBox>
+                    <VBox class="metricCardSmall">
+                        <Text text="Clientes" class="metricLabel" />
+                        <Title text="{db>/TotalClientes}" titleStyle="H2" class="metricValue" />
+                    </VBox>
+                </HBox>
+
+                <HBox width="100%" height="calc(100vh - 180px)" renderType="Bare" style="flex-grow: 1;">
+                    
+                    <VBox width="{view>/leftColumnWidth}" 
+                          class="sapUiSmallMarginBegin sapUiSmallMarginEnd" 
+                          style="height: 100%; display: flex; flex-direction: column; transition: width 0.3s ease;">
+                        
+                        <Toolbar style="Clear" class="sapUiSizeCompact">
+                            <Title text="Rutas Sugeridas" level="H4" />
+                            <ToolbarSpacer />
+                            <Button text="Calendario" icon="sap-icon://calendar" press=".onOpenCalendar" />
+                            <Button icon="sap-icon://map" text="Pintar" type="Emphasized" press=".onRenderAllRoutes" />
+                            <Button icon="{view>/expandIcon}" type="Transparent" press=".onToggleExpand" />
+                            <MultiComboBox id="mecanicoFilter" width="180px" placeholder="Filtrar..." items="{path: 'db>/Mecanicos'}">
+                                <core:Item key="{db>Nombre}" text="{db>Nombre}" />
+                            </MultiComboBox>
+                        </Toolbar>
+                        
+                       <ScrollContainer height="100%" vertical="true" horizontal="false" focusable="true" class="scrollWithPadding">
+    <List id="routeList" 
+          items="{path: 'db>/ServiciosPendientes', sorter: [{path: 'RutaID', group: true}, {path: 'CargaNum', descending: false}], groupHeaderFactory: '.getGroupHeader'}" 
+          showSeparators="Inner"
+          growing="true"
+          growingThreshold="50">
+        <CustomListItem type="Active" press=".onSelectService">
+            <HBox justifyContent="SpaceBetween" alignItems="Center" class="sapUiTinyMargin">
+                <HBox alignItems="Center">
+                    <Avatar displaySize="XS" initials="{db>CargaNum}" class="sapUiTinyMarginEnd" backgroundColor="Accent6" />
+                    <VBox>
+                        <Text text="{db>Cliente}" fontWeight="Bold" />
+                        <Text text="Eq: {db>Equipo}" />
+                        <HBox alignItems="Center" class="sapUiTinyMarginTop">
+                            <core:Icon src="sap-icon://employee" size="0.75rem" class="sapUiTinyMarginEnd" />
+                            <Text text="{db>AsignadoA}" fontWeight="Bold" />
+                        </HBox>
+                    </VBox>
+                </HBox>
+                <VBox alignItems="End" class="sapUiSmallMarginEnd">
+                    <Text text="{db>FechaFull}" fontWeight="Bold" />
+                    <ObjectStatus text="{db>RankingTexto}" state="{= ${db>CargaNum} === 1 ? 'Success' : 'Warning' }" inverted="true" />
+                    <Text text="{db>DistanciaBase_km} km" />
+                </VBox>
+            </HBox>
+        </CustomListItem>
+    </List>
+</ScrollContainer>
+                    </VBox> 
+
+                    <VBox width="{view>/rightColumnWidth}" 
+                          visible="{= !${view>/isExpanded} }" 
+                          style="border-left: 1px solid #e5e5e5; height: 100%; display: flex; flex-direction: column;">
+                        
+                        <VBox height="450px" minHeight="450px" width="100%" style="flex-shrink: 0;">
+                            <core:HTML content='&lt;div id="map_canvas_strategy" style="width:100%; height:450px; min-height:450px; display:block;"&gt;&lt;/div&gt;' />
+                        </VBox>
+
+                        <ScrollContainer height="100%" vertical="true" horizontal="false" focusable="true">
+                            <VBox class="sapUiSmallMargin">
+                                <Panel headerText="Kilometraje Total por Técnico" expandable="true" expanded="true" class="sapUiTinyMarginBottom customPanel">
+                                    <mc:ComparisonMicroChart size="M" isResponsive="false" data="{path: 'db>/MecanicosStats', sorter: {path: 'KmTotales', descending: true}}">
+                                        <mc:data>
+                                            <mc:ComparisonMicroChartData title="{db>Nombre}" value="{db>KmTotales}" color="{db>ColorKm}" />
+                                        </mc:data>
+                                    </mc:ComparisonMicroChart>
+                                </Panel>
+
+                                <Panel headerText="Eficiencia y Ocupación" expandable="true" expanded="true" class="customPanel">
+                                    <List items="{path: 'db>/MecanicosStats', sorter: {path: 'PorcentajeCarga', descending: true}}">
+                                        <CustomListItem>
+                                            <HBox alignItems="Center" class="sapUiSmallMarginBeginEnd sapUiSmallMarginTopBottom">
+                                                <VBox width="35%">
+                                                    <Text text="{db>Nombre}" fontWeight="Bold" class="textMecanicoMini" />
+                                                    <Text text="{db>KmTotales} km totales" style="font-size: 0.7rem; color: #666;" />
+                                                </VBox>
+                                                <VBox width="65%" class="sapUiSmallMarginBegin">
+                                                    <ProgressIndicator percentValue="{db>PorcentajeCarga}" displayValue="{db>PorcentajeCarga}%" state="{path: 'db>PorcentajeCarga', formatter: '.formatProgressState'}" height="1.2rem" />
+                                                </VBox>
+                                            </HBox>
+                                        </CustomListItem>
+                                    </List>
+                                </Panel>
+                            </VBox>
+                        </ScrollContainer>
+                    </VBox>
+                </HBox>
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

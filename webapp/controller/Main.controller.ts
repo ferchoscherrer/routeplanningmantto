@@ -276,6 +276,11 @@ export default class Main extends Controller {
     const oRouter = (this.getOwnerComponent() as any).getRouter();
     oRouter.navTo("RoutePlanMonth");
 }
+
+public onStrategicPlanningNav(): void {
+    const oRouter = (this.getOwnerComponent() as any).getRouter();
+    oRouter.navTo("RouteStrategicPlanning");
+}
     public onOrganizar(): void { MessageToast.show("Abriendo módulo de Organización..."); }
     public onSeguir(): void { MessageToast.show("Modo Seguimiento activado"); }
 }

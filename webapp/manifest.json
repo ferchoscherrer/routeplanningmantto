@@ -57,7 +57,8 @@
       "sap.tnt": {},
         "sap.ui.vbm": {
         "lazy": false
-      }
+      },
+      "sap.f": {}
       }
     },
     "contentDensities": {
@@ -109,7 +110,12 @@
           "target": [
             "TargetRoutePlanMonth"
           ]
-        }
+        },
+        {
+    "name": "RouteStrategicPlanning",
+    "pattern": "StrategicPlanning",
+    "target": ["TargetStrategicPlanning"]
+  }
       ],
       "targets": {
         "TargetMain": {
@@ -121,7 +127,12 @@
           "id": "RoutePlanMonth",
           "name": "RoutePlanMonth",
           "viewLevel": 2
-        }
+        },
+        "TargetStrategicPlanning": {
+    "id": "StrategicPlanning",
+    "name": "StrategicPlanning",
+    "viewLevel": 3
+  }
       }
     },
     "rootView": {

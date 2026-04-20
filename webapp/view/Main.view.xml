@@ -17,6 +17,7 @@
 
                 <Button text="Programar diario" icon="sap-icon://calendar" type="Transparent" press=".onProgramar" />
                 <Button text="Programar Mensual" icon="sap-icon://calendar" type="Transparent" press=".onProgramarMensual" />
+                <Button text="Planeación Estratégica" icon="sap-icon://calendar" type="Transparent" press=".onStrategicPlanningNav" />
                 <Button text="Organizar" icon="sap-icon://Chart-Tree-Map" type="Transparent" press=".onOrganizar" />
                 <Button text="Seguir" icon="sap-icon://locate-me" type="Emphasized" press=".onSeguir" />
                 <Button text="Analizar" icon="sap-icon://business-objects-experience" type="Transparent" press=".onAnalizar" />
