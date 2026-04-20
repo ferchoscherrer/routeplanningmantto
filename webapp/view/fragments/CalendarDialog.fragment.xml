@@ -2,7 +2,7 @@
     xmlns="sap.m"
     xmlns:core="sap.ui.core"
     xmlns:unified="sap.ui.unified">
-    <Dialog title="Calendario de Citas Globales" contentWidth="95%" contentHeight="90%" resizable="true" draggable="true">
+    <Dialog title="Calendario de Citas Globales" contentWidth="95%" contentHeight="90%">
         <content>
             <SinglePlanningCalendar
                 id="idGlobalCalendar"
