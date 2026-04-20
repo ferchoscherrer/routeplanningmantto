@@ -18,6 +18,7 @@ import MessageToast from "sap/m/MessageToast";
 import Fragment from "sap/ui/core/Fragment";
 // En los imports de arriba, asegúrate de tener al menos el chart principal
 import BulletMicroChart from "sap/suite/ui/microchart/BulletMicroChart";
+import BusyDialog from "sap/m/BusyDialog";
 
 declare var google: any;
 
@@ -50,7 +51,9 @@ private _pCalendarDialog: Promise<Dialog>;
             leftColumnWidth: "50%",
             rightColumnWidth: "50%",
             expandIcon: "sap-icon://full-screen",
-            expandTooltip: "Ver pantalla completa"
+            expandTooltip: "Ver pantalla completa",
+            isCalculating: false,
+            isOptimized: false,
         });
         this.getView()?.setModel(oViewModel, "view");
 
@@ -220,8 +223,10 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
 
     // --- FASE 1: PREPARACIÓN Y RESETEO ---
     aServicios.forEach((s: any) => {
+        // Calculamos distancia a la base siempre como referencia
         s.DistanciaBase_km = this._calculateHaversine(this.BASE_COORDS.lat, this.BASE_COORDS.lng, parseFloat(s.Lat), parseFloat(s.Lng));
         
+        // Solo reseteamos y calculamos fechas para servicios que NO han sido gestionados manualmente
         if (!s.isManual) {
             if (!s.FechaProgramada) {
                 s.FechaProgramada = this._calculateFrequencyDate(s.Frecuencia, oBaseDate.getFullYear(), oBaseDate.getMonth());
@@ -240,7 +245,8 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
     const oCargaGlobalMecanicos: any = {};
     aMecanicos.forEach((m: any) => oCargaGlobalMecanicos[m.Nombre] = 0);
 
-    // --- FASE 2: REGISTRAR CARGA MANUAL PRIMERO ---
+    // --- FASE 2: REGISTRAR CARGA DE REASIGNACIONES MANUALES ---
+    // Esto es vital para que el algoritmo sepa que el mecánico ya está ocupado
     aServicios.filter((s: any) => s.isManual && s.AsignadoA).forEach((s: any) => {
         if (!oResumenRutas[s.RutaID]) oResumenRutas[s.RutaID] = { totalKm: 0, totalEquipos: 0 };
         oResumenRutas[s.RutaID].totalEquipos++;
@@ -249,7 +255,7 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
         }
     });
 
-    // --- FASE 3: ASIGNACIÓN AUTOMÁTICA ---
+    // --- FASE 3: ASIGNACIÓN AUTOMÁTICA DE SERVICIOS RESTANTES ---
     const oServiciosPorFecha: any = {};
     aServicios.forEach((s: any) => {
         if (!oServiciosPorFecha[s.FechaProgramada]) oServiciosPorFecha[s.FechaProgramada] = [];
@@ -261,9 +267,11 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
         let bHayEquiposLibres = true;
 
         while (bHayEquiposLibres) {
+            // FILTRO CRÍTICO: El algoritmo solo ve lo que no tiene mecánico y no es manual
             const aLibres = aEquiposDelDia.filter((s: any) => !s.AsignadoA && !s.isManual);
             if (aLibres.length === 0) { bHayEquiposLibres = false; break; }
 
+            // Buscamos al mecánico con menos carga actual (incluyendo lo manual)
             const oMecanicoAsignado = aMecanicos
                 .filter((m: any) => !oResumenRutas[`RUTA-${sFecha.replace(/\//g, "")}-${m.Id}`])
                 .sort((a: any, b: any) => oCargaGlobalMecanicos[a.Nombre] - oCargaGlobalMecanicos[b.Nombre])[0];
@@ -291,7 +299,7 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
         }
     });
 
-    // --- FASE 4: ACTUALIZACIÓN FINAL DE DATOS Y ESTADÍSTICAS ---
+    // --- FASE 4: ACTUALIZACIÓN DE ESTADÍSTICAS FINALES ---
     let fTotalKmGeneral = 0;
     aServicios.forEach((s: any) => {
         if (s.RutaID && oResumenRutas[s.RutaID]) {
@@ -317,45 +325,39 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
         };
     });
 
-    const iTotalRutas = [...new Set(aServicios.map((s: any) => s.RutaID).filter((id: any) => !!id))].length;
-    const iTotalClientes = [...new Set(aServicios.map((s: any) => s.Cliente).filter((c: any) => !!c))].length;
-    const iTotalMecanicosActivos = aMecanicosStats.filter((m: any) => m.KmTotales > 0).length;
-    
-    // CORRECCIÓN AQUÍ: Agregamos el tipado (s: any)
-    const iSinAsignar = aServicios.filter((s: any) => !s.AsignadoA).length;
-
-    // Actualizar todas las métricas en el modelo
+    // Actualizar métricas globales en el modelo
     oModel.setProperty("/TotalEquipos", aServicios.length);
     oModel.setProperty("/TotalKm", fTotalKmGeneral.toFixed(1));
-    oModel.setProperty("/TotalRutas", iTotalRutas);
-    oModel.setProperty("/TotalMecanicos", iTotalMecanicosActivos);
-    oModel.setProperty("/TotalClientes", iTotalClientes);
-    oModel.setProperty("/TotalSinAsignar", iSinAsignar);
+    oModel.setProperty("/TotalRutas", [...new Set(aServicios.map((s: any) => s.RutaID).filter((id: string) => !!id))].length);
+    oModel.setProperty("/TotalMecanicos", aMecanicosStats.filter((m: any) => m.KmTotales > 0).length);
+    oModel.setProperty("/TotalClientes", [...new Set(aServicios.map((s: any) => s.Cliente).filter((c: string) => !!c))].length);
+    oModel.setProperty("/TotalSinAsignar", aServicios.filter((s: any) => !s.AsignadoA).length);
     oModel.setProperty("/MecanicosStats", aMecanicosStats);
 
-    // --- FASE 5: CALENDARIO ---
+    // --- FASE 5: GENERACIÓN DE CITAS PARA EL CALENDARIO ---
     const aCitasGlobales = aServicios.map((s: any) => {
         const [day, month, year] = s.FechaProgramada.split('/');
         const oFecha = new Date(+year, +month - 1, +day);
+        const oFechaInicio = new Date(+year, +month - 1, +day, 9, 0); // 9:00 AM
+    const oFechaFin = new Date(+year, +month - 1, +day, 11, 0);  // 11:00 AM
         return {
-            startDate: oFecha,
-            endDate: new Date(oFecha.getTime() + (2 * 60 * 60 * 1000)),
-            title: `${s.Cliente} (${s.Equipo})`, 
-            text: `Téc: ${s.AsignadoA || "Sin asignar"} | Ruta: ${s.RutaID || "N/A"}`,
-            type: s.isManual ? "Type05" : "Type01",
-            icon: s.isManual ? "sap-icon://user-edit" : "sap-icon://shipping-status",
-            key: s.Equipo
+            startDate: oFechaInicio,
+        endDate: oFechaFin,
+        title: s.Cliente,
+        text: `Téc: ${s.AsignadoA} | Eq: ${s.Equipo}`,
+        type: s.isManual ? "Type05" : "Type01",
+        icon: s.isManual ? "sap-icon://user-edit" : "sap-icon://shipping-status"
         };
     });
 
     oModel.setProperty("/CitasGlobales", aCitasGlobales);
-    if (aCitasGlobales.length > 0) {
-        oModel.setProperty("/StartDate", aCitasGlobales[0].startDate);
-    }
-
     oModel.setProperty("/ServiciosPendientes", aServicios);
     oModel.refresh(true);
 }
+
+
+
+
 
 
 
@@ -407,13 +409,38 @@ public getGroupHeader(oGroup: any): GroupHeaderListItem {
         oModel.setProperty("/Mecanicos", aMecanicos);
     }
 
-    public onFilterMecanico(oEvent: any): void {
-        const aSelectedKeys = oEvent.getSource().getSelectedKeys() as string[];
-        const oBinding = (this.byId("routeList") as List)?.getBinding("items") as ListBinding;
-        if (!oBinding) return;
-        const aFilters = aSelectedKeys.length === 0 ? [] : [new Filter({ filters: aSelectedKeys.map((sName: string) => new Filter("AsignadoA", FilterOperator.EQ, sName)), and: false })];
-        oBinding.filter(aFilters, FilterType.Application);
+public onFilterMecanico(oEvent: any): void {
+    // 1. Obtener las llaves seleccionadas (nombres de los mecánicos)
+    const aSelectedKeys = oEvent.getSource().getSelectedKeys() as string[];
+    
+    // 2. Obtener el binding de la lista de forma segura
+    const oList = this.byId("routeList") as List;
+    const oBinding = oList?.getBinding("items") as ListBinding;
+
+    if (!oBinding) {
+        return;
     }
+
+    // 3. Crear el array de filtros
+    let aFilters: Filter[] = [];
+
+    if (aSelectedKeys.length > 0) {
+        // Creamos un filtro OR: que el mecánico sea A OR B OR C...
+        const aMecanicoFilters = aSelectedKeys.map((sName: string) => {
+            return new Filter("AsignadoA", FilterOperator.EQ, sName);
+        });
+        
+        // Unimos todos los filtros en uno solo con 'and: false' (OR)
+        aFilters.push(new Filter({
+            filters: aMecanicoFilters,
+            and: false
+        }));
+    }
+
+    // 4. Aplicar el filtro al binding y forzar la actualización
+    // Usamos FilterType.Application para que no choque con filtros de búsqueda internos
+    oBinding.filter(aFilters, FilterType.Application);
+}
 
     public onNavBack(): void {
         const oHistory = History.getInstance();
@@ -604,21 +631,26 @@ public onOpenActionSheet(oEvent: any): void {
  */
 private _showReassignDialog(sType: string, oContext: any): void {
     const oModel = this.getView()?.getModel("db") as JSONModel;
-    // Capturamos un ID único del servicio (por ejemplo, el ID del equipo o un UUID)
-    const sTargetEq = oContext.getProperty("Eq"); 
+    const sTargetEq = oContext.getProperty("Eq"); // ID único del equipo seleccionado
     
     let oInputControl: any;
 
-    // 1. Configuración de controles (se mantiene igual)
     if (sType === "Mecanico") {
         oInputControl = new Select({
             width: "100%",
-            items: { path: "db>/Mecanicos", template: new Item({ key: "{db>Nombre}", text: "{db>Nombre}" } as any) }
+            items: {
+                path: "db>/Mecanicos",
+                template: new Item({ key: "{db>Nombre}", text: "{db>Nombre}" } as any)
+            }
         });
         oInputControl.setSelectedKey(oContext.getProperty("AsignadoA"));
     } else if (sType === "Fecha") {
-        oInputControl = new DatePicker({ width: "100%", displayFormat: "dd/MM/yyyy", valueFormat: "dd/MM/yyyy" });
-        oInputControl.setValue(oContext.getProperty("FechaProgramada"));
+        oInputControl = new DatePicker({
+            width: "100%",
+            displayFormat: "dd/MM/yyyy",
+            valueFormat: "dd/MM/yyyy",
+            value: oContext.getProperty("FechaProgramada")
+        });
     } else {
         const aServicios = oModel.getProperty("/ServiciosPendientes") || [];
         const aRutasExistentes = [...new Set(aServicios.map((s: any) => s.RutaID))].filter(id => !!id) as string[];
@@ -630,65 +662,73 @@ private _showReassignDialog(sType: string, oContext: any): void {
     }
 
     const oDialog = new Dialog({
-        title: `Reasignar ${sType}`,
+        title: `Reasignar ${sType} (Individual)`,
         content: [oInputControl],
         beginButton: new Button({
             text: "Confirmar",
             type: "Emphasized",
             press: () => {
-                // --- PASO CRÍTICO: Buscar el objeto real en el array maestro ---
-                const aAllServices = oModel.getProperty("/ServiciosPendientes");
+                const aAllServices = oModel.getProperty("/ServiciosPendientes") || [];
+                // Buscamos ÚNICAMENTE el servicio seleccionado por su ID de equipo
                 const nIdx = aAllServices.findIndex((s: any) => s.Eq === sTargetEq);
 
                 if (nIdx === -1) {
-                    MessageToast.show("Error: No se encontró el servicio en el modelo");
+                    MessageToast.show("Error: No se encontró el servicio");
                     return;
                 }
 
-                // Creamos la ruta base para setProperty (esto es lo más seguro en SAPUI5)
                 const sBaseNode = "/ServiciosPendientes/" + nIdx;
-                let sNewValue: string;
 
-                if (sType === "Fecha") {
-                    sNewValue = (oInputControl as DatePicker).getValue();
-                    oModel.setProperty(sBaseNode + "/FechaProgramada", sNewValue);
+                if (sType === "Mecanico") {
+                    const sNuevoMecanico = (oInputControl as Select).getSelectedKey();
+                    const aMecanicos = oModel.getProperty("/Mecanicos") || [];
+                    const oMecData = aMecanicos.find((m: any) => m.Nombre === sNuevoMecanico);
+
+                    // CAMBIO INDIVIDUAL: Solo afectamos este registro
+                    oModel.setProperty(sBaseNode + "/AsignadoA", sNuevoMecanico);
                     
-                    // Actualizar FechaFull para que el agrupamiento no se rompa
-                    const [day, month, year] = sNewValue.split('/');
+                    if (oMecData) {
+                        const sFechaLimpia = (aAllServices[nIdx].FechaProgramada || "").replace(/\//g, "");
+                        // Se le asigna una nueva RutaID basada en el nuevo mecánico
+                        oModel.setProperty(sBaseNode + "/RutaID", `RUTA-${sFechaLimpia}-${oMecData.Id}`);
+                    }
+                } else if (sType === "Fecha") {
+                    const sNewDate = (oInputControl as DatePicker).getValue();
+                    oModel.setProperty(sBaseNode + "/FechaProgramada", sNewDate);
+                    
+                    const [day, month, year] = sNewDate.split('/');
                     const oFechaObj = new Date(+year, +month - 1, +day);
                     const sNombreDia = oFechaObj.toLocaleDateString('es-MX', { weekday: 'long' });
-                    const sFechaFull = sNombreDia.charAt(0).toUpperCase() + sNombreDia.slice(1) + ", " + sNewValue;
-                    oModel.setProperty(sBaseNode + "/FechaFull", sFechaFull);
-
-                } else if (sType === "Mecanico") {
-                    sNewValue = (oInputControl as Select).getSelectedKey();
-                    oModel.setProperty(sBaseNode + "/AsignadoA", sNewValue);
-                    
-                    const aMecs = oModel.getProperty("/Mecanicos") || [];
-                    const oMec = aMecs.find((m: any) => m.Nombre === sNewValue);
-                    if (oMec) {
-                        const sF = (oModel.getProperty(sBaseNode + "/FechaProgramada") || "").replace(/\//g, "");
-                        oModel.setProperty(sBaseNode + "/RutaID", `RUTA-${sF}-${oMec.Id}`);
-                    }
+                    const sFormattedDate = sNombreDia.charAt(0).toUpperCase() + sNombreDia.slice(1) + ", " + sNewDate;
+                    oModel.setProperty(sBaseNode + "/FechaFull", sFormattedDate);
                 } else {
-                    sNewValue = (oInputControl as Select).getSelectedKey();
-                    oModel.setProperty(sBaseNode + "/RutaID", sNewValue);
+                    // Reasignación directa de Ruta
+                    const sNuevaRuta = (oInputControl as Select).getSelectedKey();
+                    oModel.setProperty(sBaseNode + "/RutaID", sNuevaRuta);
+                    
+                    // Opcional: Si la ruta tiene un patrón RUTA-FECHA-IDMECANICO, podrías extraer el mecánico
+                    // Pero por ahora, simplemente cambiamos el ID de la ruta para que se mueva de grupo
                 }
 
-                // Marcar como manual y Ranking
+                // Importante: Marcar como manual para que no sea sobrescrito por lógica automática básica
                 oModel.setProperty(sBaseNode + "/isManual", true);
-                oModel.setProperty(sBaseNode + "/RankingTexto", "Reasignado");
 
-                // Ejecutar algoritmo y refrescar mapa
-                this._runRoutingAlgorithm(oModel);
+                // Refrescamos y ejecutamos el algoritmo para que recalcule los totales de las rutas involucradas
+                oModel.refresh(true);
+                this._runRoutingAlgorithm(oModel); 
                 this.onRenderAllRoutes();
 
                 oDialog.close();
-                MessageToast.show("Reasignación completada");
+                MessageToast.show("Servicio movido individualmente");
             }
         }),
-        endButton: new Button({ text: "Cancelar", press: () => oDialog.close() }),
-        afterClose: () => oDialog.destroy()
+        endButton: new Button({
+            text: "Cancelar",
+            press: () => oDialog.close()
+        }),
+        afterClose: () => {
+            oDialog.destroy();
+        }
     });
 
     this.getView()?.addDependent(oDialog);
@@ -696,18 +736,13 @@ private _showReassignDialog(sType: string, oContext: any): void {
 }
 
 
-
 public async onOpenCalendar(): Promise<void> {
     const oView = this.getView();
-    
-    // Si oView es undefined, salimos de la función
-    if (!oView) {
-        return;
-    }
+    if (!oView) return;
 
     if (!this._pCalendarDialog) {
         this._pCalendarDialog = Fragment.load({
-            id: oView.getId(), // Aquí TS ya sabe que oView existe
+            id: oView.getId(),
             name: "routeplanningmantto.view.fragments.CalendarDialog",
             controller: this
         }) as Promise<Dialog>;
@@ -719,7 +754,27 @@ public async onOpenCalendar(): Promise<void> {
 
     const oDialog = await this._pCalendarDialog;
     oDialog.open();
+
+    // Verificación y refresco forzado
+    setTimeout(() => {
+        const oCalendar = this.byId("idGlobalCalendar") as any;
+        if (oCalendar) {
+            // 1. Refrescar el binding de las citas
+            const oBinding = oCalendar.getBinding("appointments");
+            if (oBinding) {
+                oBinding.refresh(true);
+            }
+            // 2. Opcional: Asegurar que el calendario inicia en la fecha de la primera cita
+            const aCitas = this.getView()?.getModel("db")?.getProperty("/CitasGlobales");
+            if (aCitas && aCitas.length > 0) {
+                oCalendar.setStartDate(aCitas[0].startDate);
+            }
+        }
+    }, 100); // 100ms son suficientes para el renderizado
 }
+
+
+
 
 public onCloseCalendarDialog(): void {
     this._pCalendarDialog.then(oDialog => oDialog.close());
@@ -739,6 +794,115 @@ public formatProgressState(iPercentage: any): string {
     }
 }
 
+public onOpenReassignActions(oEvent: any): void {
+    const oButton = oEvent.getSource();
+    const oContext = oButton.getBindingContext("db"); // Capturamos el contexto del servicio actual
 
+    const oActionSheet = new ActionSheet({
+        title: "Seleccione acción de reasignación",
+        showCancelButton: true,
+        placement: "Bottom",
+        buttons: [
+            new Button({
+                text: "Reasignar Mecánico",
+                icon: "sap-icon://employee",
+                press: () => this._showReassignDialog("Mecanico", oContext)
+            }),
+            new Button({
+                text: "Reasignar Fecha",
+                icon: "sap-icon://appointment-2",
+                press: () => this._showReassignDialog("Fecha", oContext)
+            }),
+            new Button({
+                text: "Reasignar Ruta",
+                icon: "sap-icon://map",
+                press: () => this._showReassignDialog("Ruta", oContext)
+            })
+        ],
+        cancelButtonPress: function () {
+            // Se destruye al cancelar para liberar memoria
+            oActionSheet.destroy();
+        }
+    });
+
+    this.getView()?.addDependent(oActionSheet);
+    oActionSheet.openBy(oButton);
+}
+
+public onRunSimulation(): void {
+    const oViewModel = this.getView()?.getModel("view") as JSONModel;
+    const oModel = this.getView()?.getModel("db") as JSONModel;
+    const aMecanicos = oModel.getProperty("/Mecanicos") || [];
+    const aServicios = oModel.getProperty("/ServiciosPendientes") || [];
+    
+    const oBusyDialog = new BusyDialog({
+        title: "Motor de Optimización SAP BTP",
+        text: "Iniciando análisis de demanda y disponibilidad...",
+        showCancelButton: false
+    });
+    this.getView()?.addDependent(oBusyDialog);
+    oBusyDialog.open();
+
+    oViewModel.setProperty("/isCalculating", true);
+
+    // Seleccionamos una muestra de servicios para mostrar en el log (ej. los primeros 5)
+    const aMuestra = aServicios.slice(0, 5);
+    let iIndex = 0;
+
+    // Función recursiva para mostrar los logs uno por uno con tiempo para leer
+    const fnShowNextLog = () => {
+        if (iIndex < aMuestra.length) {
+            const oServicio = aMuestra[iIndex];
+            // Buscamos un mecánico de forma aleatoria o secuencial para el mensaje
+            const oMec = aMecanicos[iIndex % aMecanicos.length];
+            
+            oBusyDialog.setText(
+                `[PROCESANDO]: Asignando ${oServicio.Cliente} (${oServicio.Equipo}) \n` +
+                `Técnico: ${oMec.Nombre} | Frecuencia: ${oServicio.Frecuencia}`
+            );
+
+            iIndex++;
+            // Ajusta este tiempo (800ms - 1000ms) para que el usuario alcance a leer
+            setTimeout(fnShowNextLog, 900); 
+        } else {
+            // Fase final del log
+            oBusyDialog.setText("Finalizando balanceo de carga y cálculo de rutas...");
+            
+            setTimeout(() => {
+                // EJECUCIÓN REAL DEL ALGORITMO
+                this._runRoutingAlgorithm(oModel);
+                this.onRenderAllRoutes();
+
+                oViewModel.setProperty("/isOptimized", true);
+                oViewModel.setProperty("/isCalculating", false);
+                
+                oBusyDialog.close();
+                oBusyDialog.destroy();
+                
+                MessageToast.show("Planificación estratégica generada con éxito");
+            }, 1000);
+        }
+    };
+
+    // Iniciamos la secuencia de mensajes tras un breve delay inicial
+    setTimeout(fnShowNextLog, 1000);
+}
+
+// Método para volver al estado inicial
+public onResetPlanning(): void {
+    const oViewModel = this.getView()?.getModel("view") as JSONModel;
+    const oModel = this.getView()?.getModel("db") as JSONModel;
+    
+    // Limpiar banderas isManual e isDirty para permitir re-cálculo limpio
+    const aServicios = oModel.getProperty("/ServiciosPendientes");
+    aServicios.forEach((s: any) => {
+        s.isManual = false;
+        s.AsignadoA = null;
+        s.RutaID = "";
+    });
+    
+    oViewModel.setProperty("/isOptimized", false);
+    oModel.refresh(true);
+}
 
 }

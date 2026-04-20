@@ -23,7 +23,7 @@
             </SinglePlanningCalendar>
         </content>
         <beginButton>
-            <Button text="Cerrar" press=".onCloseCalendarDialog" />
+            <Button text="Cerrar" type="Emphasized" press=".onCloseCalendarDialog" />
         </beginButton>
     </Dialog>
 </core:FragmentDefinition>

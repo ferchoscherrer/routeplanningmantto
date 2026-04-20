@@ -9,7 +9,7 @@
         <content>
             <VBox width="100%" height="100%" renderType="Bare">
                 
-                <HBox class="sapUiSmallMargin" wrap="Wrap" justifyContent="Start" style="flex-shrink: 0;">
+                <HBox visible="{view>/isOptimized}" class="sapUiSmallMargin" wrap="Wrap" justifyContent="Start" style="flex-shrink: 0;">
                     <VBox class="metricCardSmall">
                         <Text text="Equipos" class="metricLabel" />
                         <Title text="{db>/TotalEquipos}" titleStyle="H2" class="metricValue" />
@@ -44,16 +44,53 @@
                         <Toolbar style="Clear" class="sapUiSizeCompact">
                             <Title text="Rutas Sugeridas" level="H4" />
                             <ToolbarSpacer />
+                            
+                            <Button 
+                                text="{= ${view>/isOptimized} ? 'Re-Optimizar' : 'Optimizar Planificación' }" 
+                                icon="sap-icon://process" 
+                                type="Emphasized"
+                                visible="{= !${view>/isOptimized} }" 
+                                press=".onRunSimulation" />
+                                
                             <Button text="Calendario" icon="sap-icon://calendar" press=".onOpenCalendar" />
-                            <Button icon="sap-icon://map" text="Pintar" type="Emphasized" press=".onRenderAllRoutes" />
+                            <Button icon="sap-icon://map" text="Pintar" type="Emphasized" press=".onRenderAllRoutes" visible="{view>/isOptimized}" />
                             <Button icon="{view>/expandIcon}" type="Transparent" press=".onToggleExpand" />
-                            <MultiComboBox id="mecanicoFilter" width="180px" placeholder="Filtrar..." items="{path: 'db>/Mecanicos'}">
+                            
+                            <MultiComboBox 
+                                id="mecanicoFilter" 
+                                width="180px" 
+                                placeholder="Filtrar por mecánico..." 
+                                items="{path: 'db>/Mecanicos'}"
+                                visible="{view>/isOptimized}"
+                                selectionFinish=".onFilterMecanico"> 
                                 <core:Item key="{db>Nombre}" text="{db>Nombre}" />
                             </MultiComboBox>
                         </Toolbar>
                         
                        <ScrollContainer height="100%" vertical="true" horizontal="false" focusable="true" class="scrollWithPadding">
+    
+    <VBox visible="{= !${view>/isOptimized} }">
+        <MessageStrip
+            text="Datos listos para procesar. Revise la lista de equipos antes de iniciar la optimización."
+            type="Information"
+            showIcon="true"
+            class="sapUiTinyMarginBottom" />
+            
+        <List id="prePlanningList" 
+              items="{path: 'db>/ServiciosPendientes'}" 
+              headerText="Equipos por Programar"
+              showSeparators="Inner">
+            <StandardListItem
+                title="{db>Cliente}"
+                description="Equipo: {db>Equipo} | Frecuencia: {db>Frecuencia}"
+                icon="sap-icon://machine"
+                info="Pendiente"
+                infoState="Warning" />
+        </List>
+    </VBox>
+
     <List id="routeList" 
+          visible="{view>/isOptimized}"
           items="{path: 'db>/ServiciosPendientes', sorter: [{path: 'RutaID', group: true}, {path: 'CargaNum', descending: false}], groupHeaderFactory: '.getGroupHeader'}" 
           showSeparators="Inner"
           growing="true"
@@ -75,6 +112,11 @@
                     <Text text="{db>FechaFull}" fontWeight="Bold" />
                     <ObjectStatus text="{db>RankingTexto}" state="{= ${db>CargaNum} === 1 ? 'Success' : 'Warning' }" inverted="true" />
                     <Text text="{db>DistanciaBase_km} km" />
+                    <Button
+                        icon="sap-icon://settings"
+                        type="Transparent"
+                        press=".onOpenReassignActions"
+                        tooltip="Opciones de reasignación" />
                 </VBox>
             </HBox>
         </CustomListItem>
@@ -91,32 +133,79 @@
                         </VBox>
 
                         <ScrollContainer height="100%" vertical="true" horizontal="false" focusable="true">
-                            <VBox class="sapUiSmallMargin">
-                                <Panel headerText="Kilometraje Total por Técnico" expandable="true" expanded="true" class="sapUiTinyMarginBottom customPanel">
-                                    <mc:ComparisonMicroChart size="M" isResponsive="false" data="{path: 'db>/MecanicosStats', sorter: {path: 'KmTotales', descending: true}}">
-                                        <mc:data>
-                                            <mc:ComparisonMicroChartData title="{db>Nombre}" value="{db>KmTotales}" color="{db>ColorKm}" />
-                                        </mc:data>
-                                    </mc:ComparisonMicroChart>
-                                </Panel>
+    <VBox class="sapUiSmallMargin">
+        
+        <VBox visible="{= !${view>/isOptimized} }">
+            <MessageStrip
+                text="Personal técnico disponible para la jornada. El algoritmo balanceará las rutas entre ellos."
+                type="Success"
+                showIcon="true"
+                class="sapUiTinyMarginBottom" />
+            
+            <Table id="mechanicsPrepTable" 
+                   items="{path: 'db>/Mecanicos'}" 
+                   sticky="HeaderToolbar,ColumnHeaders"
+                   class="sapUiTinyMarginTop">
+                <headerToolbar>
+                    <OverflowToolbar>
+                        <Title text="Mecánicos en Disponibilidad" level="H4" />
+                    </OverflowToolbar>
+                </headerToolbar>
+                <columns>
+                    <Column>
+                        <Text text="Nombre" />
+                    </Column>
+                    <Column hAlign="End">
+                        <Text text="ID" />
+                    </Column>
+                </columns>
+                <items>
+                    <ColumnListItem>
+                        <cells>
+                            <HBox alignItems="Center">
+                                <core:Icon src="sap-icon://employee" class="sapUiTinyMarginEnd" color="Default" />
+                                <Text text="{db>Nombre}" fontWeight="Bold" />
+                            </HBox>
+                            <Text text="{db>Id}" />
+                        </cells>
+                    </ColumnListItem>
+                </items>
+            </Table>
+        </VBox>
 
-                                <Panel headerText="Eficiencia y Ocupación" expandable="true" expanded="true" class="customPanel">
-                                    <List items="{path: 'db>/MecanicosStats', sorter: {path: 'PorcentajeCarga', descending: true}}">
-                                        <CustomListItem>
-                                            <HBox alignItems="Center" class="sapUiSmallMarginBeginEnd sapUiSmallMarginTopBottom">
-                                                <VBox width="35%">
-                                                    <Text text="{db>Nombre}" fontWeight="Bold" class="textMecanicoMini" />
-                                                    <Text text="{db>KmTotales} km totales" style="font-size: 0.7rem; color: #666;" />
-                                                </VBox>
-                                                <VBox width="65%" class="sapUiSmallMarginBegin">
-                                                    <ProgressIndicator percentValue="{db>PorcentajeCarga}" displayValue="{db>PorcentajeCarga}%" state="{path: 'db>PorcentajeCarga', formatter: '.formatProgressState'}" height="1.2rem" />
-                                                </VBox>
-                                            </HBox>
-                                        </CustomListItem>
-                                    </List>
-                                </Panel>
+        <VBox visible="{view>/isOptimized}">
+            <Panel headerText="Kilometraje Total por Técnico" 
+                   busy="{view>/isCalculating}" 
+                   busyIndicatorDelay="0" 
+                   expandable="true" 
+                   expanded="true" 
+                   class="sapUiTinyMarginBottom customPanel">
+                <mc:ComparisonMicroChart size="M" isResponsive="false" data="{path: 'db>/MecanicosStats', sorter: {path: 'KmTotales', descending: true}}">
+                    <mc:data>
+                        <mc:ComparisonMicroChartData title="{db>Nombre}" value="{db>KmTotales}" color="{db>ColorKm}" />
+                    </mc:data>
+                </mc:ComparisonMicroChart>
+            </Panel>
+
+            <Panel headerText="Eficiencia y Ocupación" expandable="true" expanded="true" class="customPanel">
+                <List items="{path: 'db>/MecanicosStats', sorter: {path: 'PorcentajeCarga', descending: true}}">
+                    <CustomListItem>
+                        <HBox alignItems="Center" class="sapUiSmallMarginBeginEnd sapUiSmallMarginTopBottom">
+                            <VBox width="35%">
+                                <Text text="{db>Nombre}" fontWeight="Bold" class="textMecanicoMini" />
+                                <Text text="{db>KmTotales} km totales" style="font-size: 0.7rem; color: #666;" />
                             </VBox>
-                        </ScrollContainer>
+                            <VBox width="65%" class="sapUiSmallMarginBegin">
+                                <ProgressIndicator percentValue="{db>PorcentajeCarga}" displayValue="{db>PorcentajeCarga}%" state="{path: 'db>PorcentajeCarga', formatter: '.formatProgressState'}" height="1.2rem" />
+                            </VBox>
+                        </HBox>
+                    </CustomListItem>
+                </List>
+            </Panel>
+        </VBox>
+        
+    </VBox>
+</ScrollContainer>
                     </VBox>
                 </HBox>
             </VBox>
