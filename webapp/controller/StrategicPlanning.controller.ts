@@ -336,10 +336,13 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
 
     // --- FASE 5: GENERACIÓN DE CITAS PARA EL CALENDARIO ---
     const aCitasGlobales = aServicios.map((s: any) => {
-        const [day, month, year] = s.FechaProgramada.split('/');
-        const oFecha = new Date(+year, +month - 1, +day);
-        const oFechaInicio = new Date(+year, +month - 1, +day, 9, 0); // 9:00 AM
-    const oFechaFin = new Date(+year, +month - 1, +day, 11, 0);  // 11:00 AM
+       const [day, month, year] = s.FechaProgramada.split('/');
+    const oFechaInicio = new Date(+year, +month - 1, +day, 9, 0);
+    const oFechaFin = new Date(+year, +month - 1, +day, 11, 0);
+
+    // IMPORTANTE: Guardar la fecha objeto directamente en el servicio
+    s.startDate = oFechaInicio; 
+    s.endDate = oFechaFin;
         return {
             startDate: oFechaInicio,
         endDate: oFechaFin,
@@ -759,12 +762,13 @@ public async onOpenCalendar(): Promise<void> {
          * Si tu función guarda el resultado en 'FechaProgramada' o 'startDate', 
          * asegúrate de que el nombre coincida aquí.
          */
-        let dStart = s.startDate; 
+       let dStart = s.startDate;
 
         // Validación: Si por alguna razón no es objeto Date, lo convertimos
-        if (dStart && !(dStart instanceof Date)) {
-            dStart = new Date(dStart);
-        }
+        if (!dStart && s.FechaProgramada) {
+        const [day, month, year] = s.FechaProgramada.split('/');
+        dStart = new Date(+year, +month - 1, +day, 9, 0);
+    }
 
         // Si la fecha es inválida o nula, asignamos una por defecto para evitar que el calendario rompa
         if (!dStart || isNaN(dStart.getTime())) {
@@ -920,13 +924,12 @@ public onRunSimulation(): void {
             oBusyDialog.setText("Finalizando balanceo de carga y validación de contratos...");
             
             setTimeout(() => {
-                // 1. EJECUCIÓN DEL ALGORITMO (Mantenemos tus funciones base)
+                // 1. EJECUCIÓN DEL ALGORITMO
                 this._runRoutingAlgorithm(oModel);
 
                 // 2. ENRIQUECIMIENTO POST-OPTIMIZACIÓN
-                // Aseguramos que los servicios procesados mantengan los nuevos campos de la DB
                 const aServiciosFinales = oModel.getProperty("/ServiciosPendientes").map((s: any) => {
-                    // Si el algoritmo no formateó la fecha, lo hacemos aquí para la vista
+                    // Formateo de fecha para la vista
                     let sFechaTxt = s.FechaProgramada; 
                     if (s.startDate && s.startDate instanceof Date) {
                         sFechaTxt = s.startDate.toLocaleDateString('es-MX', { 
@@ -934,11 +937,16 @@ public onRunSimulation(): void {
                         });
                     }
 
+                    // --- MEJORA VIGENCIA: Procesa el nuevo objeto de db.json ---
+                    const sVigenciaTxt = (s.Vigencia && s.Vigencia.Inicio) 
+                        ? `${s.Vigencia.Inicio} al ${s.Vigencia.Fin}` 
+                        : "No definida";
+
                     return {
                         ...s,
                         FechaFull: sFechaTxt,
+                        VigenciaDisplay: sVigenciaTxt, // Campo para el CustomListItem
                         RankingTexto: s.Prioridad === 1 ? "Prioridad Crítica" : "Programado",
-                        // Mantenemos los campos robustos para el CustomListItem
                         Contrato: s.Contrato || "N/A",
                         Status: s.Status || "Activo",
                         Direccion: s.Direccion || ""
@@ -947,7 +955,7 @@ public onRunSimulation(): void {
 
                 oModel.setProperty("/ServiciosPendientes", aServiciosFinales);
                 
-                // 3. ACTUALIZACIÓN DE MÉTRICAS (Basado en la nueva DB)
+                // 3. ACTUALIZACIÓN DE MÉTRICAS
                 const iTotalEquipos = aServiciosFinales.length;
                 const iTotalClientes = [...new Set(aServiciosFinales.map((s: any) => s.Cliente))].length;
                 
