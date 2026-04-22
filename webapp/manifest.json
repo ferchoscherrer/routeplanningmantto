@@ -10,6 +10,16 @@
     "title": "{{appTitle}}",
     "description": "{{appDescription}}",
     "resources": "resources.json",
+    "dataSources": {
+        "mainService": {
+            "uri": "/sap/opu/odata/sap/ZCS_GETDATA_PLANNING_ROUTE_SRV/",
+            "type": "OData",
+            "settings": {
+                "odataVersion": "2.0",
+                "localUri": "localService/metadata.xml"
+            }
+        }
+    },
     "sourceTemplate": {
       "id": "@sap/generator-fiori:basic",
       "version": "1.22.0",
@@ -67,9 +77,10 @@
     },
     "models": {
       "db": {
-            "type": "sap.ui.model.json.JSONModel",
-            "uri": "model/db.json"
-        },
+            "dataSource": "mainService",
+            "settings": {
+                "defaultBindingMode": "TwoWay"
+        }},
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {

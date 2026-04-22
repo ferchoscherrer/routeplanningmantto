@@ -3,6 +3,12 @@ import JSONModel from "sap/ui/model/json/JSONModel";
 import MessageToast from "sap/m/MessageToast";
 import ToolPage from "sap/tnt/ToolPage";
 import Input from "sap/m/Input";
+import MessageBox from "sap/m/MessageBox";
+import ODataModel from "sap/ui/model/odata/v2/ODataModel";
+import BindingMode from "sap/ui/model/BindingMode";
+import BusyIndicator from "sap/ui/core/BusyIndicator";
+import Filter from "sap/ui/model/Filter";
+import FilterOperator from "sap/ui/model/FilterOperator";
 
 /**
  * @namespace routeplanningmantto.controller
@@ -283,6 +289,75 @@ public onStrategicPlanningNav(): void {
 }
     public onOrganizar(): void { MessageToast.show("Abriendo módulo de Organización..."); }
     public onSeguir(): void { MessageToast.show("Modo Seguimiento activado"); }
+
+
+
+// ... dentro de tu controlador
+
+public testODataConnection(): void {
+    const oComponent = this.getOwnerComponent();
+    const oModel = oComponent?.getModel("db") as any;
+
+    if (!oModel || typeof oModel.read !== "function") {
+        console.error("El modelo 'db' no es un ODataModel válido.");
+        return;
+    }
+
+    // 1. Definición del filtro para evitar el error 501
+    const sMailFilter = "ldelacruz@melco.com.mx|032026";
+    const aFilters = [
+        new Filter("Mail", FilterOperator.EQ, sMailFilter)
+    ];
+
+    // 2. Log de la URI base
+    console.log(">>> URI Base del Servicio:", oModel.sServiceUrl);
+    
+    BusyIndicator.show(0);
+
+    oModel.read("/HeaderRouteSet", {
+        filters: aFilters,
+        urlParameters: {
+            "$expand": "ServicesRouteSet,MechanicRouteSet"
+        },
+        success: (oData: any) => {
+            BusyIndicator.hide();
+            
+            // LOG DE LA URI REAL (Solo visible si el servidor responde)
+            console.log(">>> URL de la petición enviada a SAP: ", oModel.sServiceUrl + "/HeaderRouteSet?$filter=Mail eq '" + sMailFilter + "'&$expand=...");
+
+            // 3. Procesamiento de los resultados del EntitySet
+            if (oData && oData.results && oData.results.length > 0) {
+                const oHeader = oData.results[0]; // Tomamos el primer resultado del filtro
+                
+                console.log("✅ RESULTADOS ODATA RECIBIDOS:");
+                console.log("Header ID:", oHeader.Id);
+                console.log("Mecánicos encontrados:", oHeader.MechanicRouteSet?.results?.length || 0);
+                console.log("Servicios encontrados:", oHeader.ServicesRouteSet?.results?.length || 0);
+                
+                // Muestra la tabla de servicios en consola para validar campos
+                console.table(oHeader.ServicesRouteSet.results);
+
+                MessageBox.success("Datos cargados. Revisa la consola para ver la estructura de MechanicRouteSet y ServicesRouteSet.");
+            } else {
+                console.warn("⚠️ No se encontraron datos para el filtro proporcionado.");
+                MessageToast.show("Sin resultados en SAP para este usuario/periodo.");
+            }
+        },
+        error: (oError: any) => {
+            BusyIndicator.hide();
+            
+            // Log de la URI que falló
+            if (oError.requestUri) {
+                console.error("❌ URI FALLIDA:", oError.requestUri);
+            }
+            
+            console.error("❌ ERROR DETALLADO:", oError);
+            MessageBox.error("Fallo en SAP: " + (oError.message || "Error desconocido"));
+        }
+    });
+}
+
+
 }
 
 declare global { interface Window { google: any; initMap: any; } }

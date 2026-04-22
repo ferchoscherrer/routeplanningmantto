@@ -14,7 +14,7 @@
                 <Title text="AntsRoute Clone" class="sapUiSmallMarginEnd" />
                 
                 <ToolbarSeparator />
-
+                <Button text="Probar OData" press=".testODataConnection" type="Emphasized" />
                 <Button text="Programar diario" icon="sap-icon://calendar" type="Transparent" press=".onProgramar" />
                 <Button text="Programar Mensual" icon="sap-icon://calendar" type="Transparent" press=".onProgramarMensual" />
                 <Button text="Planeación Estratégica" icon="sap-icon://calendar" type="Transparent" press=".onStrategicPlanningNav" />

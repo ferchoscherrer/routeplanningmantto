@@ -85,7 +85,13 @@
                                             <VBox>
                                                 <Text text="{db>Cliente}" fontWeight="Bold" />
                                                 <Text text="Eq: {db>Equipo} | Contrato: {db>Contrato}" style="font-size: 0.85rem;"/>
-                                                <Text text="Vigencia: {db>Vigencia}" style="font-size: 0.85rem; color: #666;"/>
+                                                <Text text="{
+        parts: [
+            {path: 'db>VigenciaIni'},
+            {path: 'db>VigenciaFin'}
+        ],
+        formatter: '.formatSAPDateRange'
+    } " style="font-size: 0.85rem; color: #666;"/>
                                             </VBox>
                                             <VBox alignItems="End">
                                                 <ObjectStatus text="{db>Status}" state="{= ${db>Status} === 'Activo' ? 'Success' : 'Warning' }" />
@@ -153,7 +159,7 @@
                                         class="sapUiTinyMarginBottom" />
                                     
                                     <Table id="mechanicsPrepTable" 
-                                           items="{path: 'db>/Mecanicos'}" 
+                                           items="{path: 'db>/MecanicosStats'}" 
                                            sticky="HeaderToolbar,ColumnHeaders"
                                            class="sapUiTinyMarginTop">
                                         <headerToolbar>
