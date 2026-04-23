@@ -155,9 +155,6 @@ private _initMap(): void {
 
     // 1. Validar si el elemento DOM ya existe
     if (!mapElement) {
-        //console.log("Esperando a que el contenedor del mapa aparezca en el DOM...");
-        //mapElement.style.border = "5px solid red"; 
-        //console.log("Contenedor encontrado. Ancho:", mapElement.offsetWidth, "Alto:", mapElement.offsetHeight);
         if (this._mapAttempts < 15) {
             this._mapAttempts++;
             setTimeout(() => this._initMap(), 400); // Intento rápido
@@ -172,8 +169,16 @@ private _initMap(): void {
                 center: { lat: this.BASE_COORDS.lat, lng: this.BASE_COORDS.lng },
                 zoom: 12,
                 mapTypeId: google.maps.MapTypeId.ROADMAP,
-                fullscreenControl: false,
-                mapTypeControl: false
+                
+                // --- CAMBIOS PARA ACTIVAR EL ICONO DE PANTALLA COMPLETA ---
+                fullscreenControl: true, 
+                fullscreenControlOptions: {
+                    position: google.maps.ControlPosition.RIGHT_TOP
+                },
+                // Opcionales: habilitamos otros controles útiles
+                mapTypeControl: true,
+                zoomControl: true,
+                streetViewControl: true
             });
 
             console.log("¡Mapa cargado exitosamente!");
@@ -185,7 +190,7 @@ private _initMap(): void {
         return;
     }
 
-    // 3. Carga dinámica de la librería (solo si no existe el script en el head)
+    // 3. Carga dinámica de la librería
     if (!document.getElementById("google-maps-sdk")) {
         console.log("Inyectando script de Google Maps...");
         const sApiKey = "AIzaSyDVrf4dOi3krlWgBf0-qjqKXmBLkm-aEEQ"; 
@@ -198,13 +203,12 @@ private _initMap(): void {
         document.head.appendChild(oScript);
     }
 
-    // 4. Reintento mientras el script termina de cargar globalmente
+    // 4. Reintento mientras el script termina de cargar
     if (this._mapAttempts < 30) {
         this._mapAttempts++;
         setTimeout(() => this._initMap(), 800);
     }
 }
-
 
 
 
@@ -266,74 +270,61 @@ private _drawBaseMarker(coords: any): void {
 
 
 
-    public onToggleExpand(): void {
-        const oViewModel = this.getView()?.getModel("view") as JSONModel;
-        const bCurrentState = oViewModel.getProperty("/isExpanded");
+   public onToggleExpand(): void {
+    const oViewModel = this.getView()?.getModel("view") as JSONModel;
+    const bExpanded = oViewModel.getProperty("/isExpanded");
+    const bNewState = !bExpanded;
 
-        if (!bCurrentState) {
-            oViewModel.setProperty("/isExpanded", true);
-            oViewModel.setProperty("/leftColumnWidth", "100%");
-            oViewModel.setProperty("/rightColumnWidth", "0%");
-            oViewModel.setProperty("/expandIcon", "sap-icon://exit-full-screen");
-        } else {
-            oViewModel.setProperty("/isExpanded", false);
-            oViewModel.setProperty("/leftColumnWidth", "50%");
-            oViewModel.setProperty("/rightColumnWidth", "50%");
-            oViewModel.setProperty("/expandIcon", "sap-icon://full-screen");
+    oViewModel.setProperty("/isExpanded", bNewState);
 
-            setTimeout(() => {
-                this._refreshMapLayout();
-            }, 350);
-        }
+    if (bNewState) {
+        // MODO PANTALLA COMPLETA
+        oViewModel.setProperty("/leftColumnWidth", "0%");
+        oViewModel.setProperty("/rightColumnWidth", "100%");
+        oViewModel.setProperty("/expandIcon", "sap-icon://collapse-group"); 
+    } else {
+        // MODO NORMAL (Split)
+        oViewModel.setProperty("/leftColumnWidth", "40%");
+        oViewModel.setProperty("/rightColumnWidth", "60%");
+        oViewModel.setProperty("/expandIcon", "sap-icon://full-screen");
     }
 
-    private _refreshMapLayout(): void {
-        if (typeof google !== "undefined" && this._oMap) {
-            google.maps.event.trigger(this._oMap, 'resize');
-            this._oMap.setCenter(this.BASE_COORDS);
-        }
-    }
+    // CRÍTICO: Avisar a Google Maps que el div cambió de tamaño
+    setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+        // Si tienes la instancia del mapa guardada:
+        // this._oMap.setCenter(this.BASE_COORDS); 
+    }, 400);
+}
+
+
 private _runRoutingAlgorithm(oModel: JSONModel): void {
-    // Extraemos los datos de la estructura OData
     const oData = oModel.getData();
     const aServicios = oData.ServicesRouteSet?.results || [];
     const aMecanicos = oData.MechanicRouteSet?.results || [];
     
-    // Usamos la fecha del modelo o una por defecto
-    const sStartDate = oData.StartDate || "2026-04-01";
-    const oBaseDate = new Date(sStartDate);
+    const iTargetMonth = 2; // Marzo
+    const iTargetYear = 2026;
 
-    // --- FASE 1: PREPARACIÓN Y RESETEO ---
+    console.log(`[LOG-PLAN] --- SIMULACIÓN: FECHA | RUTA-BASE-CONSECUTIVO + KM ---`);
+
+    // --- FASE 1: PREPARACIÓN ---
     aServicios.forEach((s: any) => {
-        // Mapeo de campos SAP a lógica interna
-        s.Cliente = s.Nombre; // El campo 'Nombre' del OData es el Cliente
+        s.Cliente = s.Nombre; 
         s.Eq = s.Equipo;
-
-        // Calculamos distancia a la base (coordenadas ya deben estar geocodificadas)
-        s.DistanciaBase_km = this._calculateHaversine(
-            this.BASE_COORDS.lat, 
-            this.BASE_COORDS.lng, 
-            parseFloat(s.Lat || "0"), 
-            parseFloat(s.Lng || "0")
-        );
+        // Limpiamos banderas de ubicación compartida para evitar iconos residuales
+        s.isSharedLocation = false;
+        s.SharedLocationIcon = "";
         
         if (!s.isManual) {
             if (!s.FechaProgramada) {
-                // Si SAP trae VigenciaIni (YYYYMMDD), podrías usarla, sino calculamos por frecuencia
-                if (s.VigenciaIni && s.VigenciaIni !== "00000000") {
-                    const y = s.VigenciaIni.substring(0, 4);
-                    const m = s.VigenciaIni.substring(4, 6);
-                    const d = s.VigenciaIni.substring(6, 8);
-                    s.FechaProgramada = `${d}/${m}/${y}`;
-                } else {
-                    s.FechaProgramada = this._calculateFrequencyDate(s.Frecuencia, oBaseDate.getFullYear(), oBaseDate.getMonth());
-                }
+                s.FechaProgramada = this._calculateFrequencyDate(s.Frecuencia, iTargetYear, iTargetMonth);
             }
             s.AsignadoA = null;
             s.RutaID = "";
             
             const [day, month, year] = s.FechaProgramada.split('/');
-            const oFechaObj = new Date(+year, +month - 1, +day);
+            const oFechaObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
             const sNombreDia = oFechaObj.toLocaleDateString('es-MX', { weekday: 'long' });
             s.FechaFull = sNombreDia.charAt(0).toUpperCase() + sNombreDia.slice(1) + ", " + s.FechaProgramada;
         }
@@ -343,16 +334,7 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
     const oCargaGlobalMecanicos: any = {};
     aMecanicos.forEach((m: any) => oCargaGlobalMecanicos[m.Nombre] = 0);
 
-    // --- FASE 2: REGISTRAR CARGA DE REASIGNACIONES MANUALES ---
-    aServicios.filter((s: any) => s.isManual && s.AsignadoA).forEach((s: any) => {
-        if (!oResumenRutas[s.RutaID]) oResumenRutas[s.RutaID] = { totalKm: 0, totalEquipos: 0 };
-        oResumenRutas[s.RutaID].totalEquipos++;
-        if (oCargaGlobalMecanicos.hasOwnProperty(s.AsignadoA)) {
-            oCargaGlobalMecanicos[s.AsignadoA]++;
-        }
-    });
-
-    // --- FASE 3: ASIGNACIÓN AUTOMÁTICA DE SERVICIOS RESTANTES ---
+    // --- FASE 3: ASIGNACIÓN AUTOMÁTICA ---
     const oServiciosPorFecha: any = {};
     aServicios.forEach((s: any) => {
         if (!oServiciosPorFecha[s.FechaProgramada]) oServiciosPorFecha[s.FechaProgramada] = [];
@@ -362,102 +344,127 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
     Object.keys(oServiciosPorFecha).sort().forEach(sFecha => {
         const aEquiposDelDia = oServiciosPorFecha[sFecha];
         let bHayEquiposLibres = true;
+        let iConsecutivoRuta = 1;
 
         while (bHayEquiposLibres) {
             const aLibres = aEquiposDelDia.filter((s: any) => !s.AsignadoA && !s.isManual);
-            if (aLibres.length === 0) { bHayEquiposLibres = false; break; }
+            
+            if (aLibres.length === 0) {
+                bHayEquiposLibres = false; 
+                break; 
+            }
 
             const oMecanicoAsignado = aMecanicos
-                .filter((m: any) => !oResumenRutas[`RUTA-${sFecha.replace(/\//g, "")}-${m.Id}`])
+                .filter((m: any) => {
+                    const sBusqueda = `${sFecha} | RUTA-${(m.Base || "BASE").replace(/\s/g, "")}`;
+                    return !Object.keys(oResumenRutas).some(key => key.startsWith(sBusqueda));
+                })
                 .sort((a: any, b: any) => oCargaGlobalMecanicos[a.Nombre] - oCargaGlobalMecanicos[b.Nombre])[0];
 
-            if (!oMecanicoAsignado) break;
+            if (!oMecanicoAsignado) {
+                bHayEquiposLibres = false;
+                break;
+            }
 
-            const sRutaID = `RUTA-${sFecha.replace(/\//g, "")}-${oMecanicoAsignado.Id}`;
-            if (!oResumenRutas[sRutaID]) oResumenRutas[sRutaID] = { totalKm: 0, totalEquipos: 0 };
+            const sNombreBase = (oMecanicoAsignado.Base || "BASE").toUpperCase().replace(/\s/g, "");
+            
+            const oBaseMecanico = {
+                lat: parseFloat(oMecanicoAsignado.Lat || this.BASE_COORDS.lat),
+                lng: parseFloat(oMecanicoAsignado.Lng || this.BASE_COORDS.lng)
+            };
 
-            const aParaAsignar = aLibres.sort((a: any, b: any) => a.DistanciaBase_km - b.DistanciaBase_km).slice(0, 3);
-            let puntoActual = this.BASE_COORDS;
+            const aParaAsignar = aLibres.sort((a: any, b: any) => {
+                const distA = this._calculateHaversine(oBaseMecanico.lat, oBaseMecanico.lng, parseFloat(a.Lat), parseFloat(a.Lng));
+                const distB = this._calculateHaversine(oBaseMecanico.lat, oBaseMecanico.lng, parseFloat(b.Lat), parseFloat(b.Lng));
+                return distA - distB;
+            }).slice(0, 3);
 
+            let puntoAnterior = oBaseMecanico;
+            let fKmAcumuladosRuta = 0;
+
+            // CÁLCULO SECUENCIAL TRAMO A TRAMO
             aParaAsignar.forEach((s: any, index: number) => {
-                s.AsignadoA = oMecanicoAsignado.Nombre;
-                s.RutaID = sRutaID;
-                s.CargaNum = index + 1;
-                s.RankingTexto = (index + 1) === 1 ? "1ra Visita" : (index + 1) === 2 ? "2da Visita" : "3ra Visita";
+                const fLatDest = parseFloat(s.Lat);
+                const fLngDest = parseFloat(s.Lng);
+                const distTramo = this._calculateHaversine(puntoAnterior.lat, puntoAnterior.lng, fLatDest, fLngDest);
                 
-                oCargaGlobalMecanicos[oMecanicoAsignado.Nombre]++;
-                oResumenRutas[sRutaID].totalEquipos++;
-                const dist = this._calculateHaversine(puntoActual.lat, puntoActual.lng, parseFloat(s.Lat), parseFloat(s.Lng));
-                oResumenRutas[sRutaID].totalKm += dist;
-                puntoActual = { lat: parseFloat(s.Lat), lng: parseFloat(s.Lng) };
+                fKmAcumuladosRuta += distTramo;
+                
+                s.AsignadoA = oMecanicoAsignado.Nombre;
+                s.CargaNum = index + 1;
+                s.DistanciaBase_km = distTramo.toFixed(1); 
+
+                // Lógica de detección de ubicación compartida (distancia < 100 metros)
+                if (index > 0 && distTramo < 0.1) {
+                    s.isSharedLocation = true;
+                    s.SharedLocationIcon = "📍";
+                }
+                
+                puntoAnterior = { lat: fLatDest, lng: fLngDest };
             });
+
+            fKmAcumuladosRuta += this._calculateHaversine(puntoAnterior.lat, puntoAnterior.lng, oBaseMecanico.lat, oBaseMecanico.lng);
+            
+            // --- ID CON KM TOTALES (Para el GroupHeader) ---
+            const sRutaID = `RUTA-${sNombreBase}-${iConsecutivoRuta} | ${fKmAcumuladosRuta.toFixed(1)} km`;
+            
+            oResumenRutas[sRutaID] = { 
+                totalKm: fKmAcumuladosRuta, 
+                totalEquipos: aParaAsignar.length 
+            };
+
+            aParaAsignar.forEach((s: any) => {
+                s.RutaID = sRutaID;
+                s.fKmAcumuladosRuta = fKmAcumuladosRuta.toFixed(1);
+                oCargaGlobalMecanicos[oMecanicoAsignado.Nombre]++;
+            });
+
+            iConsecutivoRuta++;
         }
     });
 
-    // --- FASE 4: ACTUALIZACIÓN DE ESTADÍSTICAS FINALES ---
+    // --- FASE 4: ESTADÍSTICAS ---
     let fTotalKmGeneral = 0;
-aServicios.forEach((s: any) => {
-    if (s.RutaID && oResumenRutas[s.RutaID]) {
-        s.RutaTotalKm = oResumenRutas[s.RutaID].totalKm.toFixed(2);
-        s.RutaTotalEquipos = oResumenRutas[s.RutaID].totalEquipos;
-    }
-});
+    const aMecanicosStats = aMecanicos.map((m: any) => {
+        const aMisServicios = aServicios.filter((s: any) => s.AsignadoA === m.Nombre);
+        const fKmTecnico = aMisServicios.reduce((acc: number, curr: any) => {
+            return acc + (curr.CargaNum === 1 ? parseFloat(curr.fKmAcumuladosRuta) : 0);
+        }, 0);
 
-// Mapeamos los resultados para la tabla de estadísticas
-const aMecanicosStats = aMecanicos.map((m: any) => {
-    const aMisServicios = aServicios.filter((s: any) => s.AsignadoA === m.Nombre);
-    const fKmTecnico = aMisServicios.reduce((acc: number, curr: any) => acc + (parseFloat(curr.DistanciaBase_km) || 0), 0);
-    fTotalKmGeneral += fKmTecnico;
-    
-    const iMaxEquipos = 6; 
-    const fPorcentaje = Math.round((aMisServicios.length / iMaxEquipos) * 100);
-
-    return {
-        // IMPORTANTE: Asegurar que estos nombres coincidan con los bindeos en tu XML
-        Nombre: m.Nombre, 
-        Especialidad: m.Especialidad || "Técnico",
-        KmTotales: parseFloat(fKmTecnico.toFixed(1)),
-        PorcentajeCarga: fPorcentaje,
-        ColorEstado: fPorcentaje > 90 ? "Error" : fPorcentaje > 70 ? "Critical" : "Good"
-    };
-});
-
-    // Actualizar métricas globales en el modelo
-    oModel.setProperty("/TotalEquipos", aServicios.length);
-    oModel.setProperty("/TotalKm", fTotalKmGeneral.toFixed(1));
-    oModel.setProperty("/TotalRutas", [...new Set(aServicios.map((s: any) => s.RutaID).filter((id: string) => !!id))].length);
-    oModel.setProperty("/TotalMecanicos", aMecanicosStats.filter((m: any) => m.KmTotales > 0).length);
-    oModel.setProperty("/TotalClientes", [...new Set(aServicios.map((s: any) => s.Cliente).filter((c: string) => !!c))].length);
-    oModel.setProperty("/TotalSinAsignar", aServicios.filter((s: any) => !s.AsignadoA).length);
-    oModel.setProperty("/MecanicosStats", aMecanicosStats);
-
-    // --- FASE 5: GENERACIÓN DE CITAS PARA EL CALENDARIO ---
-    const aCitasGlobales = aServicios.map((s: any) => {
-        const [day, month, year] = s.FechaProgramada.split('/');
-        const oFechaInicio = new Date(+year, +month - 1, +day, 9, 0);
-        const oFechaFin = new Date(+year, +month - 1, +day, 11, 0);
-
-        s.startDate = oFechaInicio; 
-        s.endDate = oFechaFin;
+        fTotalKmGeneral += fKmTecnico;
+        const fPorcentaje = Math.round((aMisServicios.length / 6) * 100);
 
         return {
-            startDate: oFechaInicio,
-            endDate: oFechaFin,
-            title: `${s.AsignadoA} | ${s.Equipo}`, 
-            text: `Cliente: ${s.Cliente}`,
-            type: s.isManual ? "Type05" : "Type01",
-            icon: s.isManual ? "sap-icon://user-edit" : "sap-icon://shipping-status"
+            Nombre: m.Nombre, 
+            Base: m.Base || "Sin Base",
+            KmTotales: parseFloat(fKmTecnico.toFixed(1)),
+            PorcentajeCarga: fPorcentaje,
+            ColorEstado: fPorcentaje > 90 ? "Error" : fPorcentaje > 70 ? "Critical" : "Good"
+        };
+    });
+
+    oModel.setProperty("/MecanicosStats", aMecanicosStats);
+    oModel.setProperty("/TotalKm", fTotalKmGeneral.toFixed(1));
+    oModel.setProperty("/ServiciosPendientes", aServicios);
+    
+    // --- FASE 5: CITAS ---
+    const aCitasGlobales = aServicios.map((s: any) => {
+        const [day, month, year] = s.FechaProgramada.split('/');
+        // Si es ubicación compartida, inyectamos el Icono en el título
+        const sAppointmentTitle = s.isSharedLocation ? `${s.SharedLocationIcon} ${s.Equipo}` : `${s.Equipo}`;
+
+        return {
+            startDate: new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 9, 0),
+            endDate: new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 11, 0),
+            title: sAppointmentTitle,
+            text: `Ruta: ${s.RutaID}`,
+            type: s.isManual ? "Type05" : "Type01"
         };
     });
 
     oModel.setProperty("/CitasGlobales", aCitasGlobales);
-    oModel.setProperty("/ServiciosPendientes", aServicios);
     oModel.refresh(true);
 }
-
-
-
-
 
 
 
@@ -466,7 +473,7 @@ public getGroupHeader(oGroup: any): GroupHeaderListItem {
     const aItems: any[] = oModel?.getProperty("/ServiciosPendientes") || [];
     const oContext = aItems.find((s: any) => s.RutaID === oGroup.key);
     
-    const sTitle = `${(oContext?.FechaFull || "").split(',')[0].toUpperCase()} | ${oGroup.key} ▸ 🚛 ${oContext?.RutaTotalKm || 0} km`;
+    const sTitle = `${(oContext?.FechaFull || "").split(',')[0].toUpperCase()} | ${oGroup.key}`;
     
     const oHeader = new GroupHeaderListItem({ 
         title: sTitle, 
@@ -488,17 +495,69 @@ public getGroupHeader(oGroup: any): GroupHeaderListItem {
         return parseFloat((2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2));
     }
 
-    private _calculateFrequencyDate(frecuencia: string, year: number, month: number): string {
-        const daysMap: any = { "DOMINGO": 0, "LUNES": 1, "MARTES": 2, "MIERCOLES": 3, "MIÉRCOLES": 3, "JUEVES": 4, "VIERNES": 5, "SABADO": 6 };
-        const targetDayKey = Object.keys(daysMap).find(d => frecuencia.toUpperCase().includes(d));
-        if (!targetDayKey) return `${year}-${month + 1}-01`;
-        let date = new Date(year, month, 1);
-        while (date.getDay() !== daysMap[targetDayKey]) date.setDate(date.getDate() + 1);
-        if (frecuencia.toUpperCase().includes("SEGUNDO")) date.setDate(date.getDate() + 7);
-        else if (frecuencia.toUpperCase().includes("TERCER")) date.setDate(date.getDate() + 14);
-        else if (frecuencia.toUpperCase().includes("CUARTO")) date.setDate(date.getDate() + 21);
-        return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    
+
+
+private _calculateFrequencyDate(frecuencia: string, year: number, month: number): string {
+    const daysMap: any = { 
+        "LUN": 1, "MAR": 2, "MIE": 3, "JUE": 4, "VIE": 5, "SAB": 6, "DOM": 0 
+    };
+    
+    console.log(`[LOG-FRECUENCIA] Procesando código: "${frecuencia}" para Marzo/2026`);
+
+    const sUpper = (frecuencia || "").toUpperCase();
+    let date = new Date(year, month, 1);
+    
+    // 1. Manejo de Comodín 7-LUV (Cualquier día del mes)
+    // Lo asignamos por defecto al primer día hábil del mes (evitando fin de semana)
+    if (sUpper.includes("7-LUV")) {
+        console.log("[LOG-FRECUENCIA] Comodín detectado. Asignando al primer día disponible del mes.");
+        while (date.getDay() === 0 || date.getDay() === 6) {
+            date.setDate(date.getDate() + 1);
+        }
+    } else {
+        // 2. Manejo de códigos estructurados (Ej: 1-LUN, 2-VIE)
+        const aParts = sUpper.split("-");
+        const sSemana = aParts[0]; // "1", "2", "3", etc.
+        const sDiaBusqueda = aParts[1]; // "LUN", "MAR", etc.
+
+        const iTargetDay = daysMap[sDiaBusqueda];
+        
+        if (iTargetDay === undefined) {
+            console.warn(`[LOG-FRECUENCIA] Día no reconocido: ${sDiaBusqueda}. Usando día 01.`);
+        } else {
+            // Buscamos la primera ocurrencia de ese día en el mes
+            while (date.getDay() !== iTargetDay) {
+                date.setDate(date.getDate() + 1);
+            }
+
+            // Sumamos semanas según el número (1-Lun no suma, 2-Lun suma 7 días, etc.)
+            const iSemanasASumar = parseInt(sSemana) - 1;
+            if (iSemanasASumar > 0) {
+                date.setDate(date.getDate() + (iSemanasASumar * 7));
+            }
+        }
     }
+
+    // 3. Validación de desbordamiento (No permitir que salga de Marzo)
+    if (date.getMonth() !== month) {
+        console.log(`[LOG-FRECUENCIA] La fecha calculada se salía de mes. Ajustando al último día de Marzo.`);
+        date = new Date(year, month + 1, 0); // Último día del mes actual
+    }
+
+    const sResult = date.toLocaleDateString('es-MX', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+    });
+
+    console.log(`[LOG-FRECUENCIA] Fecha resultante: ${sResult}`);
+    return sResult;
+}
+
+
+
+
 
     private _updateMechanicKPIs(oModel: JSONModel): void {
         const aMecanicos = oModel.getProperty("/Mecanicos") || [];
@@ -850,53 +909,46 @@ public async onOpenCalendar(): Promise<void> {
     const oModel = oView.getModel("db") as JSONModel;
     if (!oModel) return;
 
-    // 1. Obtener los servicios (que ya pasaron por onRunSimulation y tienen su fecha calculada)
+    // 1. Obtener los servicios (que ya pasaron por el algoritmo y tienen su fecha en Marzo 2026)
     const aServicios = oModel.getProperty("/ServiciosPendientes") || [];
     
+    // Forzamos el inicio del calendario en Marzo 2026
+    const oTargetDate = new Date(2026, 2, 1); // Marzo es 2
+
     const aCitasFormateadas = aServicios.map((s: any) => {
-        /**
-         * IMPORTANTE: Aquí usamos el resultado de tu función _calculateFrequencyDate.
-         * Si tu función guarda el resultado en 'FechaProgramada' o 'startDate', 
-         * asegúrate de que el nombre coincida aquí.
-         */
-       let dStart = s.startDate;
+        let dStart = s.startDate;
 
-        // Validación: Si por alguna razón no es objeto Date, lo convertimos
-        if (!dStart && s.FechaProgramada) {
-        const [day, month, year] = s.FechaProgramada.split('/');
-        dStart = new Date(+year, +month - 1, +day, 9, 0);
-    }
-
-        // Si la fecha es inválida o nula, asignamos una por defecto para evitar que el calendario rompa
-        if (!dStart || isNaN(dStart.getTime())) {
-            dStart = new Date(); 
+        // Validación: Convertir string "DD/MM/YYYY" a objeto Date de JS
+        if (!(dStart instanceof Date) && s.FechaProgramada) {
+            const aParts = s.FechaProgramada.split('/');
+            dStart = new Date(parseInt(aParts[2]), parseInt(aParts[1]) - 1, parseInt(aParts[0]), 9, 0);
         }
 
-        // Definimos una duración de 2 horas para la visualización en el calendario
+        // Si la fecha sigue siendo inválida o nula, usamos el primer día de Marzo como respaldo
+        if (!dStart || isNaN(dStart.getTime())) {
+            dStart = new Date(2026, 2, 1, 9, 0); 
+        }
+
+        // Duración estándar de 2 horas para la visualización
         const dEnd = new Date(dStart.getTime() + (2 * 60 * 60 * 1000));
 
         return {
             ...s,
             startDate: dStart,
             endDate: dEnd,
-            // Construimos el título con los datos robustos que validamos antes
             title: `${s.AsignadoA || 'Técnico'} | ${s.Equipo}`,
-            text: `Contrato: ${s.Contrato} | Status: ${s.Status}`,
-            // Color según urgencia
+            text: `Cliente: ${s.Cliente} | Contrato: ${s.Contrato || 'N/A'}`,
+            // Color según urgencia (Type01 = Rojo/Urgente, Type05 = Azul/Normal)
             type: s.Urgencia === "Alta" ? "Type01" : "Type05",
             icon: s.Status === "Activo" ? "sap-icon://activate" : "sap-icon://history"
         };
     });
 
-    // 2. Sincronizamos las citas y ajustamos la fecha de inicio del calendario al primer servicio
+    // 2. Sincronizamos las citas y forzamos la vista del calendario a Marzo
     oModel.setProperty("/CitasGlobales", aCitasFormateadas);
-    
-    if (aCitasFormateadas.length > 0) {
-        // Esto asegura que el calendario se abra en el mes/día donde hay datos
-        oModel.setProperty("/StartDate", aCitasFormateadas[0].startDate);
-    }
+    oModel.setProperty("/StartDate", oTargetDate);
 
-    // 3. Carga del Fragmento
+    // 3. Carga y apertura del Fragmento
     if (!this._pCalendarDialog) {
         this._pCalendarDialog = Fragment.load({
             id: oView.getId(),
@@ -912,10 +964,12 @@ public async onOpenCalendar(): Promise<void> {
         const oDialog = await this._pCalendarDialog;
         oDialog.open();
 
-        // 4. Refresco forzado del binding para visualizar los objetos Date
+        // 4. Refresco forzado para asegurar que SAPUI5 renderice los objetos Date nuevos
         setTimeout(() => {
             const oCalendar = this.byId("idGlobalCalendar") as any;
             if (oCalendar) {
+                // Forzamos el scroll o foco a la fecha objetivo
+                oCalendar.setStartDate(oTargetDate);
                 oCalendar.getBinding("appointments")?.refresh(true);
             }
         }, 150);
@@ -1012,7 +1066,6 @@ public onRunSimulation(): void {
         if (iIndex < aMuestra.length) {
             const oServicio = aMuestra[iIndex];
             
-            // VALIDACIÓN CRÍTICA: Verificamos que el mecánico existe antes de leer .Nombre
             const oMec = aMecanicos[iIndex % aMecanicos.length];
             const sMecanicoNombre = oMec ? (oMec.Nombre || "Técnico Asignado") : "Buscando técnico...";
             const sClienteNombre = oServicio.Nombre || oServicio.Cliente || "Cliente SAP";
@@ -1028,7 +1081,7 @@ public onRunSimulation(): void {
             oBusyDialog.setText("Finalizando balanceo de carga y validación de contratos...");
             
             setTimeout(() => {
-                // 1. EJECUCIÓN DEL ALGORITMO
+                // 1. EJECUCIÓN DEL ALGORITMO (Calcula rutas, KM y CargaNum)
                 this._runRoutingAlgorithm(oModel);
 
                 // 2. ENRIQUECIMIENTO POST-OPTIMIZACIÓN
@@ -1047,12 +1100,22 @@ public onRunSimulation(): void {
                         ? `${s.VigenciaIni.substring(6,8)}/${s.VigenciaIni.substring(4,6)}/${s.VigenciaIni.substring(0,4)}`
                         : "No definida";
 
+                    // --- LÓGICA DE VISITA ACTUALIZADA ---
+                    // Usamos el CargaNum que asignó el _runRoutingAlgorithm
+                    let sVisitaLabel = "Programado";
+                    if (s.CargaNum) {
+                        sVisitaLabel = s.CargaNum === 1 ? "1ra Visita" : 
+                                       s.CargaNum === 2 ? "2da Visita" : 
+                                       s.CargaNum === 3 ? "3ra Visita" : `${s.CargaNum}ta Visita`;
+                    }
+
                     return {
                         ...s,
-                        Cliente: s.Nombre || s.Cliente, // Aseguramos que Cliente no sea undefined para la vista
+                        Cliente: s.Nombre || s.Cliente,
                         FechaFull: sFechaTxt,
                         VigenciaDisplay: sVigenciaTxt,
-                        RankingTexto: s.Prioridad === 1 ? "Prioridad Crítica" : "Programado",
+                        // Aquí asignamos el texto dinámico de la visita
+                        RankingTexto: sVisitaLabel, 
                         Contrato: s.Contrato || "N/A",
                         Status: s.Status || "Activo",
                         Direccion: s.DireccionCompleta || s.Direccion || ""
@@ -1062,9 +1125,13 @@ public onRunSimulation(): void {
                 oModel.setProperty("/ServiciosPendientes", aServiciosFinales);
                 
                 // 3. ACTUALIZACIÓN DE MÉTRICAS GLOBALES
+                const aRutasUnicas = [...new Set(aServiciosFinales.map((s: { RutaID: any; }) => s.RutaID))].filter(id => id !== "");
+                oModel.setProperty("/TotalRutas", aRutasUnicas.length);
                 oModel.setProperty("/TotalEquipos", aServiciosFinales.length);
                 oModel.setProperty("/TotalClientes", [...new Set(aServiciosFinales.map((s: any) => s.Cliente))].length);
                 oModel.setProperty("/TotalMecanicos", aMecanicos.length);
+                const iSinAsignar = aServiciosFinales.filter((s: { AsignadoA: any; }) => !s.AsignadoA).length;
+                oModel.setProperty("/TotalSinAsignar", iSinAsignar);
 
                 // 4. FINALIZACIÓN
                 this.onRenderAllRoutes();
@@ -1081,6 +1148,11 @@ public onRunSimulation(): void {
 
     setTimeout(fnShowNextLog, 1000);
 }
+
+
+
+
+
 // Método para volver al estado inicial
 public onResetPlanning(): void {
     const oViewModel = this.getView()?.getModel("view") as JSONModel;
@@ -1189,5 +1261,7 @@ public formatSAPDateRange(sIni: string, sFin: string): string {
         ? `Vigencia: ${sFechaInicio} al ${sFechaFin}${sDuracion}` 
         : `Vigencia: ${sFechaInicio}`;
 }
+
+
 
 }

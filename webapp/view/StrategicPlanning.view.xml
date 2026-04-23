@@ -85,13 +85,14 @@
                                             <VBox>
                                                 <Text text="{db>Cliente}" fontWeight="Bold" />
                                                 <Text text="Eq: {db>Equipo} | Contrato: {db>Contrato}" style="font-size: 0.85rem;"/>
+                                                <Text text="Serie: {db>Serie} | Tipo: {db>Tipo}" style="font-size: 0.85rem;"/>
                                                 <Text text="{
-        parts: [
-            {path: 'db>VigenciaIni'},
-            {path: 'db>VigenciaFin'}
-        ],
-        formatter: '.formatSAPDateRange'
-    } " style="font-size: 0.85rem; color: #666;"/>
+                                                    parts: [
+                                                        {path: 'db>VigenciaIni'},
+                                                        {path: 'db>VigenciaFin'}
+                                                    ],
+                                                    formatter: '.formatSAPDateRange'
+                                                }" style="font-size: 0.85rem; color: #666;"/>
                                             </VBox>
                                             <VBox alignItems="End">
                                                 <ObjectStatus text="{db>Status}" state="{= ${db>Status} === 'Activo' ? 'Success' : 'Warning' }" />
@@ -103,40 +104,48 @@
                             </VBox>
 
                             <List id="routeList" 
-      visible="{view>/isOptimized}"
-      items="{path: 'db>/ServiciosPendientes', sorter: [{path: 'RutaID', group: true}, {path: 'CargaNum', descending: false}], groupHeaderFactory: '.getGroupHeader'}" 
-      showSeparators="Inner"
-      growing="true"
-      growingThreshold="50">
-    <CustomListItem type="Active" press=".onSelectService">
-        <HBox justifyContent="SpaceBetween" alignItems="Center" class="sapUiTinyMargin">
-            <HBox alignItems="Center">
-                <Avatar displaySize="XS" initials="{db>CargaNum}" class="sapUiTinyMarginEnd" backgroundColor="Accent6" />
-                <VBox>
-                    <Text text="{db>Cliente}" fontWeight="Bold" />
-                    <Text text="Eq: {db>Equipo} | Contrato: {db>Contrato}" style="font-size: 0.85rem;" />
-                    <Text text="Vigencia: {db>VigenciaDisplay}" style="font-size: 0.75rem; color: #1C4D7D;" /> 
-                    
-                    <Text text="Dir: {db>Direccion}" style="font-size: 0.75rem; color: #666;" />
-                    <HBox alignItems="Center" class="sapUiTinyMarginTop">
-                        <core:Icon src="sap-icon://employee" size="0.75rem" class="sapUiTinyMarginEnd" />
-                        <Text text="{db>AsignadoA}" fontWeight="Bold" />
-                    </HBox>
-                </VBox>
-            </HBox>
-            <VBox alignItems="End" class="sapUiSmallMarginEnd">
-                <Text text="{db>FechaFull}" fontWeight="Bold" />
-                <ObjectStatus text="Status: {db>Status}" state="{= ${db>Status} === 'Activo' ? 'Success' : 'Warning' }" inverted="true" />
-                <Text text="{db>DistanciaBase_km} km" />
-                <Button
-                    icon="sap-icon://settings"
-                    type="Transparent"
-                    press=".onOpenReassignActions"
-                    tooltip="Opciones de reasignación" />
-            </VBox>
-        </HBox>
-    </CustomListItem>
-</List>
+                                visible="{view>/isOptimized}"
+                                items="{path: 'db>/ServiciosPendientes', sorter: [{path: 'RutaID', group: true}, {path: 'CargaNum', descending: false}], groupHeaderFactory: '.getGroupHeader'}" 
+                                showSeparators="Inner"
+                                growing="true"
+                                growingThreshold="50">
+                                <CustomListItem type="Active" press=".onSelectService">
+                                    <HBox justifyContent="SpaceBetween" alignItems="Center" class="sapUiTinyMargin">
+                                        <HBox alignItems="Center">
+                                            <Avatar displaySize="XS" initials="{db>CargaNum}" class="sapUiTinyMarginEnd" backgroundColor="Accent6" />
+                                            <VBox>
+                                                <Text text="{db>Cliente}" fontWeight="Bold" />
+                                                <Text text="Eq: {db>Tipo} {db>Equipo} | Contrato: {db>Contrato}" style="font-size: 0.85rem;" />
+                                                 <Text text="{db>Serie} " style="font-size: 0.105rem; color:rgba(25, 131, 238, 1)D;" />
+                                                <Text text="Vigencia: {db>VigenciaDisplay}" style="font-size: 0.75rem; color: #1C4D7D;" /> 
+                                                <Text text="Dir: {db>Direccion}" style="font-size: 0.75rem; color: #666;" />
+                                                <Text text="Tiempo estimado de servicio: {db>Tiempo} min." style="font-size: 0.75rem; color: #666;" />
+                                                <HBox alignItems="Center" class="sapUiTinyMarginTop">
+                                                    <core:Icon src="sap-icon://employee" size="0.75rem" class="sapUiTinyMarginEnd" />
+                                                    <Text text="{db>AsignadoA}" fontWeight="Bold" />
+                                                </HBox>
+                                            </VBox>
+                                        </HBox>
+                                        <VBox alignItems="End" class="sapUiSmallMarginEnd">
+                                            <Text text="{db>FechaFull}" fontWeight="Bold" />
+                                            
+                                            <ObjectStatus text="{db>RankingTexto}" state="Indication05" class="sapUiTinyMarginTopBottom" />
+
+                                            <HBox alignItems="Center">
+                                                <Text text="{db>SharedLocationIcon}" class="sapUiTinyMarginEnd" visible="{= ${db>SharedLocationIcon} !== '' &amp;&amp; ${db>SharedLocationIcon} !== null }" />
+                                                <Text text="{db>DistanciaBase_km}" fontWeight="Bold" />
+                                                <Text text=" km" fontWeight="Bold" />
+                                            </HBox>
+                                            
+                                            <Button
+                                                icon="sap-icon://settings"
+                                                type="Transparent"
+                                                press=".onOpenReassignActions"
+                                                tooltip="Opciones de reasignación" />
+                                        </VBox>
+                                    </HBox>
+                                </CustomListItem>
+                            </List>
                         </ScrollContainer>
                     </VBox> 
 
