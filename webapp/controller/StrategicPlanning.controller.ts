@@ -1577,7 +1577,6 @@ public onRunSimulation(): void {
     const oViewModel = this.getView()?.getModel("view") as JSONModel;
     const oModel = this.getView()?.getModel("db") as JSONModel;
     
-    // IMPORTANTE: Obtenemos los datos según la nueva estructura de SAP
     const oData = oModel.getData();
     const aMecanicos = oData.MechanicRouteSet?.results || oModel.getProperty("/MecanicosStats") || [];
     const aServicios = oData.ServicesRouteSet?.results || oModel.getProperty("/ServiciosPendientes") || [];
@@ -1589,98 +1588,67 @@ public onRunSimulation(): void {
 
     const oBusyDialog = new BusyDialog({
         title: "Motor de Optimización SAP BTP",
-        text: "Iniciando análisis de demanda y disponibilidad...",
-        showCancelButton: false
+        text: "Iniciando análisis de demanda y disponibilidad..."
     });
     this.getView()?.addDependent(oBusyDialog);
     oBusyDialog.open();
 
     oViewModel.setProperty("/isCalculating", true);
 
-    // Logs visuales: tomamos una muestra para el usuario
     const aMuestra = aServicios.slice(0, 8);
     let iIndex = 0;
 
     const fnShowNextLog = () => {
         if (iIndex < aMuestra.length) {
             const oServicio = aMuestra[iIndex];
-            
             const oMec = aMecanicos[iIndex % aMecanicos.length];
             const sMecanicoNombre = oMec ? (oMec.Nombre || "Técnico Asignado") : "Buscando técnico...";
-            const sClienteNombre = oServicio.Nombre || oServicio.Cliente || "Cliente SAP";
-
-            oBusyDialog.setText(
-                `[OPTIMIZANDO]: ${sClienteNombre} \n` +
-                `Contrato: ${oServicio.Contrato || 'N/A'} | Técnico: ${sMecanicoNombre}`
-            );
-
+            
+            oBusyDialog.setText(`[OPTIMIZANDO]: ${oServicio.Nombre || oServicio.Cliente} \n Técnico: ${sMecanicoNombre}`);
             iIndex++;
             setTimeout(fnShowNextLog, 800); 
         } else {
-            oBusyDialog.setText("Finalizando balanceo de carga y validación de contratos...");
+            oBusyDialog.setText("Finalizando balanceo de carga...");
             
             setTimeout(() => {
-                // 1. EJECUCIÓN DEL ALGORITMO (Calcula rutas, KM y CargaNum)
+                // 1. Ejecutar algoritmo
                 this._runRoutingAlgorithm(oModel);
 
-                // 2. ENRIQUECIMIENTO POST-OPTIMIZACIÓN
+                // 2. Enriquecer datos
                 const aServiciosActualizados = oModel.getProperty("/ServiciosPendientes") || [];
                 const aServiciosFinales = aServiciosActualizados.map((s: any) => {
-                    // Mapeo de fechas
-                    let sFechaTxt = s.FechaProgramada; 
-                    if (s.startDate && s.startDate instanceof Date) {
-                        sFechaTxt = s.startDate.toLocaleDateString('es-MX', { 
-                            day: '2-digit', month: '2-digit', year: 'numeric' 
-                        });
-                    }
-
-                    // Adaptación para VigenciaIni/Fin que viene de SAP
                     const sVigenciaTxt = (s.VigenciaIni && s.VigenciaIni !== "00000000")
                         ? `${s.VigenciaIni.substring(6,8)}/${s.VigenciaIni.substring(4,6)}/${s.VigenciaIni.substring(0,4)}`
                         : "No definida";
 
-                    // --- LÓGICA DE VISITA ACTUALIZADA ---
-                    // Usamos el CargaNum que asignó el _runRoutingAlgorithm
-                    let sVisitaLabel = "Programado";
-                    if (s.CargaNum) {
-                        sVisitaLabel = s.CargaNum === 1 ? "1ra Visita" : 
-                                       s.CargaNum === 2 ? "2da Visita" : 
-                                       s.CargaNum === 3 ? "3ra Visita" : `${s.CargaNum}ta Visita`;
-                    }
-
                     return {
                         ...s,
                         Cliente: s.Nombre || s.Cliente,
-                        FechaFull: sFechaTxt,
                         VigenciaDisplay: sVigenciaTxt,
-                        // Aquí asignamos el texto dinámico de la visita
-                        RankingTexto: sVisitaLabel, 
-                        Contrato: s.Contrato || "N/A",
-                        Status: s.Status || "Activo",
+                        RankingTexto: s.CargaNum ? `${s.CargaNum}ª Visita` : "Programado",
                         Direccion: s.DireccionCompleta || s.Direccion || ""
                     };
                 });
 
+                // 3. Seteo de datos y FORZAR VISIBILIDAD (Punto Crítico)
                 oModel.setProperty("/ServiciosPendientes", aServiciosFinales);
+                oViewModel.setProperty("/isOptimized", true); // Esto activa la visibilidad en el XML
                 
-                // 3. ACTUALIZACIÓN DE MÉTRICAS GLOBALES
-                const aRutasUnicas = [...new Set(aServiciosFinales.map((s: { RutaID: any; }) => s.RutaID))].filter(id => id !== "");
+                // 4. Actualizar métricas
+                const aRutasUnicas = [...new Set(aServiciosFinales.map((s: any) => s.RutaID))].filter(id => id !== "");
                 oModel.setProperty("/TotalRutas", aRutasUnicas.length);
                 oModel.setProperty("/TotalEquipos", aServiciosFinales.length);
-                oModel.setProperty("/TotalClientes", [...new Set(aServiciosFinales.map((s: any) => s.Cliente))].length);
-                oModel.setProperty("/TotalMecanicos", aMecanicos.length);
-                const iSinAsignar = aServiciosFinales.filter((s: { AsignadoA: any; }) => !s.AsignadoA).length;
-                oModel.setProperty("/TotalSinAsignar", iSinAsignar);
-
-                // 4. FINALIZACIÓN
-                this.onRenderAllRoutes();
-                oViewModel.setProperty("/isOptimized", true);
-                oViewModel.setProperty("/isCalculating", false);
                 
+                // 5. Refrescar bindings y pintar mapa
+                oModel.refresh(true);
+                oViewModel.refresh(true);
+                this.onRenderAllRoutes();
+                
+                oViewModel.setProperty("/isCalculating", false);
                 oBusyDialog.close();
                 oBusyDialog.destroy();
                 
-                MessageToast.show("Planificación estratégica generada con éxito");
+                MessageToast.show("Planificación generada con éxito");
             }, 1000);
         }
     };
