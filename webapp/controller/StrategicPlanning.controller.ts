@@ -21,6 +21,8 @@ import BulletMicroChart from "sap/suite/ui/microchart/BulletMicroChart";
 import BusyDialog from "sap/m/BusyDialog";
 import BusyIndicator from "sap/ui/core/BusyIndicator"; //
 import MessageBox from "sap/m/MessageBox";
+import MultiComboBox from "sap/m/MultiComboBox";
+import Sorter from "sap/ui/model/Sorter";
 
 
 declare var google: any;
@@ -43,6 +45,8 @@ private _aColors = ["#2B6CB0", "#38A169", "#D69E2E", "#E53E3E", "#805AD5", "#319
 private _aMarkerColors = ["blue", "green", "red", "orange", "purple", "yellow"];
 private _oActionSheet: ActionSheet;
 private _pCalendarDialog: Promise<Dialog>;
+private _currentYear: number;
+private _currentMonth: number;
     
 
     public onInit(): void {
@@ -62,7 +66,7 @@ private _pCalendarDialog: Promise<Dialog>;
 
     if (ooDataModel) {
         BusyIndicator.show(0);
-        const aFilters = [new Filter("Mail", FilterOperator.EQ, "ldelacruz@melco.com.mx|032026")];
+        const aFilters = [new Filter("Mail", FilterOperator.EQ, "rmercado@melco.com.mx|032026")];
 
         ooDataModel.read("/HeaderRouteSet", {
             filters: aFilters,
@@ -100,6 +104,136 @@ private _pCalendarDialog: Promise<Dialog>;
         });
     }
 }
+
+
+
+
+public formatter = {
+    // 1. Formateador para los paquetes (01|03 -> Programa: Ene, Mar)
+    formatPaquetesMeses: (sPaquetes: string): string => {
+        if (!sPaquetes || typeof sPaquetes !== "string") return "";
+        const oMesesMap: Record<string, string> = {
+            "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
+            "05": "May", "06": "Jun", "07": "Jul", "08": "Ago",
+            "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dic"
+        };
+        const aPartes = sPaquetes.split("|");
+        const aNombresMeses = aPartes.map(sNum => oMesesMap[sNum.trim()] || sNum);
+        return aNombresMeses.join(", ");
+    },
+
+    // 2. NUEVO: Traductor de Frecuencia (1-LUN -> 1er Lunes del mes)
+    formatFrecuenciaDesc: (sFrecuencia: string): string => {
+        if (!sFrecuencia) return "";
+
+        const sUpper = sFrecuencia.toUpperCase().trim();
+
+        // Manejo del comodín LUV
+        if (sUpper.includes("7-LUV")) {
+            return "Cualquier día (Lun a Vie)";
+        }
+
+        // Manejo de códigos estructurados (Semana-Día)
+        const aParts = sUpper.split("-");
+        if (aParts.length !== 2) return sFrecuencia; // Si no tiene el formato esperado, devolver original
+
+        const sSemana = aParts[0]; // "1", "2", etc.
+        const sDiaCod = aParts[1]; // "LUN", "MAR", etc.
+
+        // Mapeo de Números de Semana
+        const oSemanasMap: Record<string, string> = {
+            "1": "1er",
+            "2": "2do",
+            "3": "3er",
+            "4": "4to",
+            "5": "5to"
+        };
+
+        // Mapeo de Nombres de Día
+        const oDiasMap: Record<string, string> = {
+            "LUN": "Lunes",
+            "MAR": "Martes",
+            "MIE": "Miércoles",
+            "JUE": "Jueves",
+            "VIE": "Viernes",
+            "SAB": "Sábado",
+            "DOM": "Domingo"
+        };
+
+        const sSemanaDesc = oSemanasMap[sSemana] || sSemana + "°";
+        const sDiaDesc = oDiasMap[sDiaCod] || sDiaCod;
+
+        return `${sSemanaDesc} ${sDiaDesc} del mes`;
+    }
+};
+
+
+/*m se comenta para no usar los datos inyectados
+
+public onInit(): void {
+    const oComponent = this.getOwnerComponent();
+    const ooDataModel = oComponent?.getModel("db") as any;
+
+    const oViewModel = new JSONModel({
+        isExpanded: false,
+        leftColumnWidth: "50%",
+        rightColumnWidth: "50%",
+        expandIcon: "sap-icon://full-screen",
+        expandTooltip: "Ver pantalla completa",
+        isCalculating: false,
+        isOptimized: false,
+    });
+    this.getView()?.setModel(oViewModel, "view");
+
+    if (ooDataModel) {
+        BusyIndicator.show(0);
+        const aFilters = [new Filter("Mail", FilterOperator.EQ, "rmercado@melco.com.mx|032026")];
+
+        ooDataModel.read("/HeaderRouteSet", {
+            filters: aFilters,
+            urlParameters: { "$expand": "ServicesRouteSet,MechanicRouteSet" },
+            success: (oData: any) => {
+                if (oData && oData.results && oData.results.length > 0) {
+                    let oHeaderData = oData.results[0];
+                    
+                    // --- FASE 1: PROCESAR DATOS REALES DE SAP ---
+                    const aRealServices = oHeaderData.ServicesRouteSet?.results || [];
+                    const aRealMechanics = oHeaderData.MechanicRouteSet?.results || [];
+                    console.log("Datos reales de SAP cargados:", aRealServices.length);
+
+                    // --- FASE 2: AGREGAR DATOS DE VOLUMEN (Basados en los reales) ---
+                    oHeaderData.MechanicRouteSet.results = this._generateVolumeMechanics(aRealMechanics, 10);
+                    oHeaderData.ServicesRouteSet.results = this._generateVolumeServices(aRealServices, 250);
+
+                    const aTodosLosServicios = oHeaderData.ServicesRouteSet.results;
+
+                    if (aTodosLosServicios.length < 0) {
+                        // Geocodificamos todo el set (reales + volumen)
+                        this._geocodeAllServices(aTodosLosServicios).then(() => {
+                            const oDbModel = new JSONModel(oHeaderData);
+                            this.getView()?.setModel(oDbModel, "db");
+                            
+                            // El algoritmo ahora recibirá los datos de SAP primero en los arreglos
+                            this._runRoutingAlgorithm(oDbModel);
+                            BusyIndicator.hide();
+                        }).catch((oError) => {
+                            console.error("Error en geocodificación:", oError);
+                            BusyIndicator.hide();
+                        });
+                    }
+                } else {
+                    BusyIndicator.hide();
+                }
+            },
+            error: (oError: any) => {
+                BusyIndicator.hide();
+                console.error("Error al cargar OData:", oError);
+            }
+        });
+    }
+}
+*/
+
 
 /**
  * Función auxiliar para completar Latitud y Longitud mediante Google Maps
@@ -297,7 +431,7 @@ private _drawBaseMarker(coords: any): void {
     }, 400);
 }
 
-
+/*
 private _runRoutingAlgorithm(oModel: JSONModel): void {
     const oData = oModel.getData();
     const aServicios = oData.ServicesRouteSet?.results || [];
@@ -465,27 +599,321 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
     oModel.setProperty("/CitasGlobales", aCitasGlobales);
     oModel.refresh(true);
 }
+*/
 
+
+private _runRoutingAlgorithm(oModel: JSONModel): void {
+    const oData = oModel.getData();
+    const aServicios = oData.ServicesRouteSet?.results || [];
+    const aMecanicos = oData.MechanicRouteSet?.results || [];
+    
+    const iTargetMonth = 2; // Marzo
+    const iTargetYear = 2026;
+
+    // Límites de capacidad solicitados
+    const MAX_EQUIPOS_MES = 35;
+    const MAX_SERVICIOS_DIA = 3;
+
+    console.log(`[LOG-PLAN] --- SIMULACIÓN: FECHA | RUTA-BASE-CONSECUTIVO + KM ---`);
+
+    // --- FASE 1: PREPARACIÓN ---
+    aServicios.forEach((s: any) => {
+        // s.GroupKey se asignará al final para tener los datos reales
+        s.Cliente = s.Nombre; 
+        s.Eq = s.Equipo;
+        s.isSharedLocation = false;
+        s.SharedLocationIcon = "";
+        
+        if (!s.isManual) {
+            if (!s.FechaProgramada) {
+                s.FechaProgramada = this._calculateFrequencyDate(s.Frecuencia, iTargetYear, iTargetMonth);
+            }
+            s.AsignadoA = null;
+            s.RutaID = "";
+            
+            // Calculamos distancia base para optimizar la asignación de LUV
+            s.distFromBase = this._calculateHaversine(
+                this.BASE_COORDS.lat, this.BASE_COORDS.lng, 
+                parseFloat(s.Lat), parseFloat(s.Lng)
+            );
+
+            const [day, month, year] = s.FechaProgramada.split('/');
+            const oFechaObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            const sNombreDia = oFechaObj.toLocaleDateString('es-MX', { weekday: 'long' });
+            s.FechaFull = sNombreDia.charAt(0).toUpperCase() + sNombreDia.slice(1) + ", " + s.FechaProgramada;
+        }
+    });
+
+    const oResumenRutas: any = {};
+    const oCargaGlobalMecanicos: any = {};
+    aMecanicos.forEach((m: any) => oCargaGlobalMecanicos[m.Nombre] = 0);
+    
+
+    // Separación de servicios: Fijos (Mantienen fecha) vs Comodines (LUV)
+    const aServiciosFijos = aServicios.filter((s: any) => !s.Frecuencia?.includes("LUV") && !s.isManual);
+    const aServiciosLUV = aServicios.filter((s: any) => s.Frecuencia?.includes("LUV") && !s.isManual)
+                                    .sort((a: any, b: any) => a.distFromBase - b.distFromBase);
+
+    // --- FASE 3: ASIGNACIÓN AUTOMÁTICA MEJORADA ---
+    const oServiciosPorFecha: any = {};
+    aServiciosFijos.forEach((s: any) => {
+        if (!oServiciosPorFecha[s.FechaProgramada]) oServiciosPorFecha[s.FechaProgramada] = [];
+        oServiciosPorFecha[s.FechaProgramada].push(s);
+    });
+
+    // Generar calendario laboral para distribuir servicios LUV
+    const aFechasDelMes = Object.keys(oServiciosPorFecha).sort();
+    let oIterDate = new Date(iTargetYear, iTargetMonth, 1);
+    while (oIterDate.getMonth() === iTargetMonth) {
+        if (oIterDate.getDay() !== 0 && oIterDate.getDay() !== 6) {
+            const sF = oIterDate.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            if (!aFechasDelMes.includes(sF)) aFechasDelMes.push(sF);
+        }
+        oIterDate.setDate(oIterDate.getDate() + 1);
+    }
+    aFechasDelMes.sort();
+
+    aFechasDelMes.forEach(sFecha => {
+        aMecanicos.forEach((oMecanico: any) => {
+            // Validar tope mensual 35
+            if (oCargaGlobalMecanicos[oMecanico.Nombre] >= MAX_EQUIPOS_MES) return;
+
+            const aLibresHoy = (oServiciosPorFecha[sFecha] || []).filter((s: any) => !s.AsignadoA);
+            
+            // Rellenar con LUV si hay espacio (máximo 3 por día)
+            const iCupo = MAX_SERVICIOS_DIA - aLibresHoy.slice(0, MAX_SERVICIOS_DIA).length;
+            const aRelleno = aServiciosLUV.filter((s: any) => !s.AsignadoA).slice(0, iCupo);
+
+            const aParaAsignar = [...aLibresHoy.slice(0, MAX_SERVICIOS_DIA), ...aRelleno];
+
+            if (aParaAsignar.length === 0) return;
+
+            const sNombreBase = (oMecanico.Base || "BASE").toUpperCase().replace(/\s/g, "");
+            const oBaseMec = {
+                lat: parseFloat(oMecanico.Lat || this.BASE_COORDS.lat),
+                lng: parseFloat(oMecanico.Lng || this.BASE_COORDS.lng)
+            };
+
+            let puntoAnterior = oBaseMec;
+            let fKmAcumuladosRuta = 0;
+
+            aParaAsignar.forEach((s: any, index: number) => {
+                const fLatDest = parseFloat(s.Lat);
+                const fLngDest = parseFloat(s.Lng);
+                const distTramo = this._calculateHaversine(puntoAnterior.lat, puntoAnterior.lng, fLatDest, fLngDest);
+                
+                fKmAcumuladosRuta += distTramo;
+                
+                s.AsignadoA = oMecanico.Nombre;
+                s.FechaProgramada = sFecha; 
+                s.CargaNum = index + 1;
+                s.DistanciaBase_km = distTramo.toFixed(1); 
+
+                if (index > 0 && distTramo < 0.1) {
+                    s.isSharedLocation = true;
+                    s.SharedLocationIcon = "📍";
+                }
+                
+                puntoAnterior = { lat: fLatDest, lng: fLngDest };
+            });
+
+            fKmAcumuladosRuta += this._calculateHaversine(puntoAnterior.lat, puntoAnterior.lng, oBaseMec.lat, oBaseMec.lng);
+            
+            const iConsecutivo = (Object.keys(oResumenRutas).filter(k => k.includes(sNombreBase)).length) + 1;
+            // Guardamos el ID limpio y luego el visual
+            const sRutaIDLimpio = `RUTA-${sNombreBase}-${iConsecutivo}`;
+            const sRutaIDVisual = `${sRutaIDLimpio} | ${fKmAcumuladosRuta.toFixed(1)} km`;
+            
+            oResumenRutas[sRutaIDVisual] = { totalKm: fKmAcumuladosRuta, totalEquipos: aParaAsignar.length };
+
+            aParaAsignar.forEach((s: any) => {
+                s.RutaID = sRutaIDLimpio; // ID Limpio para el filtro del mapa
+                s.RutaIDVisual = sRutaIDVisual; // Para mostrar en el texto
+                s.fKmAcumuladosRuta = fKmAcumuladosRuta.toFixed(1);
+                // ESTA ES LA LLAVE CRÍTICA PARA EL AGRUPADOR:
+                s.GroupKey = `${s.FechaProgramada} | ${sRutaIDVisual}`; 
+                oCargaGlobalMecanicos[oMecanico.Nombre]++;
+            });
+        });
+    });
+
+    // --- FASE 4: ESTADÍSTICAS ---
+    let fTotalKmGeneral = 0;
+    const aMecanicosStats = aMecanicos.map((m: any) => {
+        const aMisServicios = aServicios.filter((s: any) => s.AsignadoA === m.Nombre);
+        const fKmTecnico = aMisServicios.reduce((acc: number, curr: any) => {
+            return acc + (curr.CargaNum === 1 ? parseFloat(curr.fKmAcumuladosRuta) : 0);
+        }, 0);
+
+        fTotalKmGeneral += fKmTecnico;
+        const fPorcentaje = Math.round((aMisServicios.length / MAX_EQUIPOS_MES) * 100);
+
+        return {
+            Nombre: m.Nombre, 
+            Base: m.Base || "Sin Base",
+            KmTotales: parseFloat(fKmTecnico.toFixed(1)),
+            PorcentajeCarga: fPorcentaje,
+            ColorEstado: fPorcentaje > 90 ? "Error" : fPorcentaje > 70 ? "Critical" : "Good"
+        };
+    });
+
+    oModel.setProperty("/MecanicosStats", aMecanicosStats);
+    oModel.setProperty("/TotalKm", fTotalKmGeneral.toFixed(1));
+    oModel.setProperty("/ServiciosPendientes", aServicios);
+    
+    // --- FASE 5: CITAS ---
+    const aCitasGlobales = aServicios.filter((s: any) => s.AsignadoA).map((s: any) => {
+        const [day, month, year] = s.FechaProgramada.split('/');
+        const sAppointmentTitle = s.isSharedLocation ? `${s.SharedLocationIcon} ${s.Equipo}` : `${s.Equipo}`;
+
+        return {
+            startDate: new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 9, 0),
+            endDate: new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 11, 0),
+            title: sAppointmentTitle,
+            text: `Ruta: ${s.RutaIDVisual}`,
+            type: s.isManual ? "Type05" : "Type01"
+        };
+    });
+
+    oModel.setProperty("/CitasGlobales", aCitasGlobales);
+    const oMecanicoFilter = this.byId("mecanicoFilter") as MultiComboBox;
+    if (oMecanicoFilter) {
+        oMecanicoFilter.getBinding("items")?.refresh();
+    }
+    oModel.refresh(true);
+}
+
+
+
+private _finalizeMetrics(oModel: JSONModel, aServicios: any[], aMecanicos: any[]): void {
+    const MAX_EQUIPOS_MES = 35; // Importante mantener el mismo límite
+    let fTotalKmGeneral = 0;
+
+    const aMecanicosStats = aMecanicos.map((m: any) => {
+        // Filtrar servicios asignados a este mecánico
+        const aMisServicios = aServicios.filter((s: any) => s.AsignadoA === m.Nombre);
+        
+        // Sumamos las distancias (usando la propiedad distFromBase que calculamos en el algoritmo)
+        const fKmTecnico = aMisServicios.reduce((acc, s) => acc + (s.distFromBase || 0), 0);
+        fTotalKmGeneral += fKmTecnico;
+        
+        // Cálculo de ocupación basado en el nuevo tope de 35
+        const fPorcentaje = Math.round((aMisServicios.length / MAX_EQUIPOS_MES) * 100);
+
+        return {
+            Nombre: m.Nombre, 
+            Base: m.Base || "Sin Base",
+            KmTotales: parseFloat(fKmTecnico.toFixed(1)),
+            PorcentajeCarga: fPorcentaje,
+            // Estado visual según carga
+            ColorEstado: fPorcentaje > 90 ? "Error" : fPorcentaje > 70 ? "Critical" : "Good"
+        };
+    });
+
+    // Actualizamos el modelo global
+    oModel.setProperty("/MecanicosStats", aMecanicosStats);
+    oModel.setProperty("/TotalKm", fTotalKmGeneral.toFixed(1));
+    oModel.setProperty("/TotalEquipos", aServicios.filter(s => s.AsignadoA).length);
+}
 
 
 public getGroupHeader(oGroup: any): GroupHeaderListItem {
-    const oModel = this.getView()?.getModel("db") as JSONModel;
-    const aItems: any[] = oModel?.getProperty("/ServiciosPendientes") || [];
-    const oContext = aItems.find((s: any) => s.RutaID === oGroup.key);
+    // 1. oGroup.key contiene "01/03/2026 | RUTA-BASE-1"
+    const sGroupKey = oGroup.key || "";
     
-    const sTitle = `${(oContext?.FechaFull || "").split(',')[0].toUpperCase()} | ${oGroup.key}`;
-    
+    // 2. Extraemos las partes. Usamos trim() para eliminar espacios accidentales
+    const aParts = sGroupKey.split(" | ");
+    const sRutaID = aParts[1] ? aParts[1].trim() : sGroupKey;
+
+    // 3. Creamos el elemento de cabecera
     const oHeader = new GroupHeaderListItem({ 
-        title: sTitle, 
+        title: sGroupKey, 
         upperCase: false, 
-        type: "Inactive" 
+        type: "Active",
+        // Usamos una función flecha para que 'this' apunte al controlador
+        press: () => {
+            console.log("Pintando ruta para ID:", sRutaID);
+            this.onSelectRouteHeader(sRutaID);
+        }
     });
 
-    // AÑADE ESTA LÍNEA para poder darle estilo en el CSS
+    // 4. Aplicamos tu estilo CSS personalizado
     oHeader.addStyleClass("myRouteHeader");
 
     return oHeader;
 }
+
+
+
+
+/*
+public onSelectRouteHeader(sRutaID: string): void {
+    if (!this._oMap) return;
+
+    this._clearAllRoutes(); // Limpiar trazos previos
+
+    const oModel = this.getView()?.getModel("db") as JSONModel;
+    const aServicios = oModel.getProperty("/ServiciosPendientes") || [];
+    
+    // Filtrar solo los servicios de esa ruta específica
+    const aPuntosRuta = aServicios
+        .filter((s: any) => s.RutaID === sRutaID)
+        .sort((a: any, b: any) => a.CargaNum - b.CargaNum);
+
+    if (aPuntosRuta.length > 0) {
+        // Pintar la ruta (usando el color azul por defecto o el índice que desees)
+        this._renderSingleRoute(aPuntosRuta, "#2B6CB0", 0);
+        
+        // Enfocar el mapa en el primer punto de la ruta
+        const oFirstPos = { 
+            lat: parseFloat(aPuntosRuta[0].Lat), 
+            lng: parseFloat(aPuntosRuta[0].Lng) 
+        };
+        this._oMap.panTo(oFirstPos);
+        this._oMap.setZoom(12);
+        
+        MessageToast.show("Visualizando trayecto de la ruta seleccionada");
+    }
+}
+*/
+public onSelectRouteHeader(sRutaID: string): void {
+    if (!this._oMap) return;
+
+    // 1. Limpiar trazos previos
+    this._clearAllRoutes();
+
+    const oModel = this.getView()?.getModel("db") as JSONModel;
+    const aServicios = oModel.getProperty("/ServiciosPendientes") || [];
+    
+    // 2. Filtrar con limpieza de strings (trim)
+    // Forzamos que tanto el campo como el parámetro no tengan espacios
+    const sIdLimpio = sRutaID ? sRutaID.trim() : "";
+
+    const aPuntosRuta = aServicios
+        .filter((s: any) => {
+            const sServicioRutaID = s.RutaID ? s.RutaID.trim() : "";
+            return sServicioRutaID === sIdLimpio;
+        })
+        .sort((a: any, b: any) => (a.CargaNum || 0) - (b.CargaNum || 0));
+
+    console.log(`Servicios encontrados para la ruta ${sIdLimpio}:`, aPuntosRuta.length);
+
+    if (aPuntosRuta.length > 0) {
+        // 3. Pintar la ruta
+        this._renderSingleRoute(aPuntosRuta, "#2B6CB0", 0);
+        
+        // 4. Enfocar mapa
+        const oFirstPos = { 
+            lat: parseFloat(aPuntosRuta[0].Lat), 
+            lng: parseFloat(aPuntosRuta[0].Lng) 
+        };
+        this._oMap.panTo(oFirstPos);
+        this._oMap.setZoom(12);
+    } else {
+        MessageToast.show("No se encontraron coordenadas para esta ruta");
+    }
+}
+
 
     private _calculateHaversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
         const R = 6371; 
@@ -569,45 +997,71 @@ private _calculateFrequencyDate(frecuencia: string, year: number, month: number)
     }
 
 public onFilterMecanico(oEvent: any): void {
-    // 1. Obtener las llaves seleccionadas (que corresponden al nombre del mecánico en nuestro item)
     const aSelectedKeys = oEvent.getSource().getSelectedKeys() as string[];
-    
-    // 2. Obtener el binding de la lista de rutas sugeridas
     const oList = this.byId("routeList") as List;
     const oBinding = oList?.getBinding("items") as ListBinding;
 
-    if (!oBinding) {
-        console.error("No se pudo encontrar el binding de la lista 'routeList'");
-        return;
+    if (!oBinding) return;
+
+    // --- LÓGICA DE LIMPIEZA Y RESETEO ---
+    if (aSelectedKeys.length === 0) {
+        // 1. Limpiar trazos del mapa
+        this._clearAllRoutes();
+
+        // 2. Limpiar los colores de la lista (para que no se queden pintados)
+        const oModel = this.getView()?.getModel("db") as JSONModel;
+        const aServicios = oModel.getProperty("/ServiciosPendientes") || [];
+        aServicios.forEach((s: any) => {
+            s.RouteColor = "transparent";
+        });
+        oModel.refresh(true);
+
+        // 3. Regresar el mapa a la posición inicial (Base)
+        if (this._oMap && this._baseCoords) {
+            this._oMap.panTo(this._baseCoords);
+            this._oMap.setZoom(10);
+        }
     }
 
-    // 3. Crear el array de filtros
     let aFilters: Filter[] = [];
-
     if (aSelectedKeys.length > 0) {
-        // Creamos un filtro por cada mecánico seleccionado
         const aMecanicoFilters = aSelectedKeys.map((sName: string) => {
-            // "AsignadoA" es el campo que contiene el nombre del mecánico tras la optimización
             return new Filter("AsignadoA", FilterOperator.EQ, sName);
         });
+        aFilters.push(new Filter({ filters: aMecanicoFilters, and: false }));
+    }
+
+    // --- AGRUPAMIENTO POR GroupKey ---
+    const oGroupSorter = new Sorter("GroupKey", false, true, (a: string, b: string) => {
+        if (!a || !b) return 0;
         
-        // Agrupamos los filtros en un solo filtro lógico OR (and: false)
-        // Esto permite ver servicios del Mecánico A O del Mecánico B
-        aFilters.push(new Filter({
-            filters: aMecanicoFilters,
-            and: false
-        }));
-    }
+        // Extraemos solo la fecha de la llave "01/03/2026 | RUTA-..."
+        const dateA = a.split(' | ')[0];
+        const dateB = b.split(' | ')[0];
+        
+        const partsA = dateA.split('/');
+        const partsB = dateB.split('/');
+        
+        // Valor numérico YYYYMMDD para ordenar cronológicamente
+        const valA = parseInt(partsA[2] + partsA[1] + partsA[0]);
+        const valB = parseInt(partsB[2] + partsB[1] + partsB[0]);
+        
+        if (valA !== valB) return valA - valB;
+        
+        // Si la fecha es igual, que ordene por el nombre de la ruta (alfabético)
+        return a.localeCompare(b);
+    });
 
-    // 4. Aplicar el filtro al binding
-    // Usamos FilterType.Application para asegurar que el filtro persista correctamente
+    // Sorter para el orden de las paradas dentro de la ruta
+    const oCargaSorter = new Sorter("CargaNum", false, false);
+
     oBinding.filter(aFilters, FilterType.Application);
-
-    // Opcional: Feedback al usuario si la lista queda vacía
-    if (aFilters.length > 0) {
-        MessageToast.show("Filtrando rutas por mecánicos seleccionados");
-    }
+    
+    // Aplicamos el nuevo sorter que agrupa correctamente
+    oBinding.sort([oGroupSorter, oCargaSorter]);
 }
+
+
     public onNavBack(): void {
         const oHistory = History.getInstance();
         if (oHistory.getPreviousHash() !== undefined) window.history.go(-1);
@@ -618,37 +1072,61 @@ public onSelectService(oEvent: any): void {
     const oItem = oEvent.getSource();
     const oContext = oItem.getBindingContext("db");
     const oService = oContext.getObject();
-    const oModel = this.getView()?.getModel("db") as JSONModel;
 
     // 1. Validaciones iniciales
-    if (!oService.RutaID || !this._oMap) {
+    // Usamos this._baseCoords que fue seteado en initBaseLocation
+    if (!this._oMap || !oService.Lat || !oService.Lng || !this._baseCoords) {
         return;
     }
 
-    // 2. Limpiar trazos y marcadores previos para no encimar rutas
+    // 2. Limpiar trazos y marcadores previos
     this._clearAllRoutes();
 
-    // 3. Obtener todos los puntos de la misma ruta y ordenarlos por número de carga
-    const aTodosLosServicios = oModel.getProperty("/ServiciosPendientes") || [];
-    const aPuntosDeEstaRuta = aTodosLosServicios
-        .filter((s: any) => s.RutaID === oService.RutaID)
-        .sort((a: any, b: any) => a.CargaNum - b.CargaNum);
+    // 3. Definir Origen (Punto A - Mariano Escobedo) y Destino (Servicio)
+    const oOrigin = new google.maps.LatLng(this._baseCoords.lat, this._baseCoords.lng);
+    const oDestination = new google.maps.LatLng(parseFloat(oService.Lat), parseFloat(oService.Lng));
 
-    // 4. Invocar el renderizado de la ruta única
-    // Usamos el índice 0 para que tome el primer color (azul) y los pines correspondientes
-    this._renderSingleRoute(aPuntosDeEstaRuta, "#2B6CB0", 0);
+    // 4. Configurar el servicio de direcciones para este trayecto
+    const oDirectionsService = new google.maps.DirectionsService();
+    const oDirectionsRenderer = new google.maps.DirectionsRenderer({
+        map: this._oMap,
+        suppressMarkers: false,
+        polylineOptions: {
+            strokeColor: "#FF5733", // Naranja para trayecto individual
+            strokeWeight: 6,
+            strokeOpacity: 0.8
+        }
+    });
 
-    // 5. Feedback visual: Mover el mapa al punto seleccionado
-    const oPos = { 
-        lat: parseFloat(oService.Lat), 
-        lng: parseFloat(oService.Lng) 
-    };
-    
-    this._oMap.panTo(oPos);
-    this._oMap.setZoom(14);
+    // Guardar referencia para limpieza posterior
+    this._aDirectionsRenderers.push(oDirectionsRenderer);
 
-    console.log("Mostrando ruta para el mecánico:", oService.AsignadoA);
+    // 5. Solicitar ruta desde la Base (Punto A) al Destino
+    oDirectionsService.route({
+        origin: oOrigin,
+        destination: oDestination,
+        travelMode: google.maps.TravelMode.DRIVING
+    }, (result: any, status: any) => {
+        if (status === google.maps.DirectionsStatus.OK) {
+            oDirectionsRenderer.setDirections(result);
+            
+            // Ajustar cámara para ver el Punto A (Base) y el Punto B (Equipo)
+            const bounds = new google.maps.LatLngBounds();
+            bounds.extend(oOrigin);
+            bounds.extend(oDestination);
+            this._oMap.fitBounds(bounds);
+        } else {
+            console.error("No se pudo trazar la ruta desde la base: " + status);
+            // Fallback: mostrar solo el destino si falla el cálculo de ruta
+            this._oMap.panTo(oDestination);
+            this._oMap.setZoom(16);
+        }
+    });
+
+    console.log("Visualizando ruta Base -> " + oService.Equipo);
 }
+
+
 
 
 /**
@@ -665,20 +1143,81 @@ private _clearAllRoutes(): void {
  */
 public onRenderAllRoutes(): void {
     if (!this._oMap) return;
+
     this._clearAllRoutes();
 
     const oModel = this.getView()?.getModel("db") as JSONModel;
     const aServicios = oModel.getProperty("/ServiciosPendientes") || [];
-    const aRutasUnicas = [...new Set(aServicios.map((s: any) => s.RutaID))].filter(id => !!id);
+    
+    const oMecanicoFilter = this.byId("mecanicoFilter") as MultiComboBox;
+    const aSelectedMecanicos = oMecanicoFilter?.getSelectedKeys() || [];
 
-    aRutasUnicas.forEach((sRutaID, index) => {
-        const aPuntosRuta = aServicios
-            .filter((s: any) => s.RutaID === sRutaID)
-            .sort((a: any, b: any) => a.CargaNum - b.CargaNum);
+    let aServiciosAPintar = aServicios.filter((s: any) => s.AsignadoA && s.RutaID);
 
-        // Pasamos el index (tercer parámetro) para que el Pin cambie de color por mecánico
-        this._renderSingleRoute(aPuntosRuta, this._aColors[index % this._aColors.length], index);
+    let sMessage = "";
+    if (aSelectedMecanicos.length > 0) {
+        aServiciosAPintar = aServiciosAPintar.filter((s: any) => 
+            aSelectedMecanicos.includes(s.AsignadoA)
+        );
+        sMessage = "Pintando rutas de: " + aSelectedMecanicos.join(", ");
+    } else {
+        sMessage = "Pintando todas las rutas del mes";
+    }
+
+    if (aServiciosAPintar.length === 0) {
+        MessageToast.show("No hay rutas asignadas.");
+        return;
+    }
+
+    // Agrupar servicios por RutaID
+    const oRutas = aServiciosAPintar.reduce((acc: any, curr: any) => {
+        if (!acc[curr.RutaID]) acc[curr.RutaID] = [];
+        acc[curr.RutaID].push(curr);
+        return acc;
+    }, {});
+
+    // Pintar en mapa y asignar color al modelo
+    Object.keys(oRutas).forEach((sRutaID, index) => {
+        const aPuntos = oRutas[sRutaID].sort((a: any, b: any) => a.CargaNum - b.CargaNum);
+        const sColor = this._getRouteColor(index); // Tu función de colores
+        
+        // --- NUEVO: Asignar el color a cada servicio de esta ruta ---
+        aPuntos.forEach((s: any) => {
+            s.RouteColor = sColor; 
+        });
+
+        this._renderSingleRoute(aPuntos, sColor, index);
     });
+
+    // Actualizar el modelo para que la vista (XML) reaccione a los nuevos colores
+    oModel.refresh(true);
+
+    this._fitMapToVisibleRoutes(aServiciosAPintar);
+    MessageToast.show(sMessage);
+}
+
+
+
+
+
+// Genera colores distintos para que las rutas no se confundan entre sí
+private _getRouteColor(index: number): string {
+    const aColors = ["#2B6CB0", "#38A169", "#D69E2E", "#E53E3E", "#805AD5", "#319795", "#718096"];
+    return aColors[index % aColors.length];
+}
+
+// Ajusta el zoom del mapa para encuadrar todos los puntos que se pintaron
+private _fitMapToVisibleRoutes(aServicios: any[]): void {
+    const bounds = new google.maps.LatLngBounds();
+    // Incluir la base en el encuadre
+    bounds.extend(new google.maps.LatLng(this._baseCoords.lat, this._baseCoords.lng));
+    
+    aServicios.forEach((s: any) => {
+        if (s.Lat && s.Lng) {
+            bounds.extend(new google.maps.LatLng(parseFloat(s.Lat), parseFloat(s.Lng)));
+        }
+    });
+    this._oMap.fitBounds(bounds);
 }
 
 /**
@@ -1262,6 +1801,80 @@ public formatSAPDateRange(sIni: string, sFin: string): string {
         : `Vigencia: ${sFechaInicio}`;
 }
 
+
+
+private _generateVolumeMechanics(aSeeds: any[], iTarget: number): any[] {
+    // Preservamos los datos originales de SAP al inicio
+    const aResults = [...aSeeds];
+    const sBaseName = aSeeds.length > 0 ? aSeeds[0].Nombre : "Mecánico";
+
+    for (let i = aResults.length; i < iTarget; i++) {
+        aResults.push({
+            Id: `MEC-VOL-${i}`,
+            Nombre: `${sBaseName} Vol ${i + 1}`,
+            Nomina: `VOL-${1000 + i}`,
+            DistanciaTotal: 0,
+            TiempoEstimado: "0",
+            PorcentajeOcupacion: 0,
+            Especialidad: i % 2 === 0 ? "Elevadores" : "Escaleras",
+            Base: i % 2 === 0 ? "TLALNEPANTLA" : "CDMX CENTRO",
+            // Dispersión controlada cerca de la base operativa
+            Lat: (this.BASE_COORDS.lat + (Math.random() - 0.5) * 0.05).toString(),
+            Lng: (this.BASE_COORDS.lng + (Math.random() - 0.5) * 0.05).toString(),
+            Color: "blue",
+            Horario: "08:00 - 18:00",
+            Turno: "Matutino",
+            DiasOffline: "",
+            Supervisor: "Supervisor Volumen",
+            Jefe: "Gerente de Zona"
+        });
+    }
+    return aResults;
+}
+
+private _generateVolumeServices(aSeeds: any[], iTarget: number): any[] {
+    // Mantenemos los servicios reales de SAP al principio para análisis prioritario
+    const aResults = [...aSeeds];
+    
+    const isValidSeed = aSeeds.length > 0 && !isNaN(parseFloat(aSeeds[0].Lat)) && !isNaN(parseFloat(aSeeds[0].Lng));
+    const baseLat = isValidSeed ? parseFloat(aSeeds[0].Lat) : this.BASE_COORDS.lat;
+    const baseLng = isValidSeed ? parseFloat(aSeeds[0].Lng) : this.BASE_COORDS.lng;
+
+    for (let i = aResults.length; i < iTarget; i++) {
+        // Dispersión aleatoria alrededor de los puntos reales de SAP
+        const randomLat = baseLat + (Math.random() - 0.5) * 0.15;
+        const randomLng = baseLng + (Math.random() - 0.5) * 0.15;
+
+        aResults.push({
+            Id: `SRV-VOL-${i}`,
+            Cliente: `Cliente Volumen ${i}`,
+            Nombre: `Sucursal Vol ${i}`,
+            Equipo: `EQ-VOL-${5000 + i}`,
+            Contrato: `CON-VOL-${8000 + i}`,
+            VigenciaIni: "20250101",
+            VigenciaFin: "20271231",
+            Posicion: i.toString(),
+            Status: "Activo",
+            Urgencia: i % 15 === 0 ? "Alta" : "Normal",
+            Direccion: `Dirección de Prueba ${i}`,
+            DireccionCompleta: `Dirección Ficticia ${i}, CP 54000, México`,
+            Lat: randomLat.toFixed(6),
+            Lng: randomLng.toFixed(6),
+            Prioridad: (i % 3) + 1,
+            // Asignamos 7-LUV para que el algoritmo los use como relleno por cercanía
+            Frecuencia: "7-LUV", 
+            Tipo: "Preventivo",
+            Serie: `SN-VOL-${9000 + i}`,
+            Niveles: "1",
+            CP: "54000",
+            StatusEquipo: "Funcionando",
+            UltimaOrden: "N/A",
+            Tiempo: "120",
+            UM: "MIN"
+        });
+    }
+    return aResults;
+}
 
 
 }

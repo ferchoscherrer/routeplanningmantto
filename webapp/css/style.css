@@ -267,3 +267,9 @@ div[id*="map_canvas_strategy"] {
 .scrollWithPadding ul {
     padding-bottom: 120px !important;
 }
+
+/* Asegura que el contenedor de la columna no oculte el desbordamiento */
+.myCustomSidePanel {
+    height: 100%;
+    overflow: hidden; /* El ScrollContainer interno se encargará del scroll */
+}
