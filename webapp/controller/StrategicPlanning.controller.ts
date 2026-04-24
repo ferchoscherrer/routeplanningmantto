@@ -25,7 +25,7 @@ import MessageBox from "sap/m/MessageBox";
 
 declare var google: any;
 
-/**
+/***
  * @namespace routeplanningmantto.controller
  */
 export default class StrategicPlanning extends Controller {
