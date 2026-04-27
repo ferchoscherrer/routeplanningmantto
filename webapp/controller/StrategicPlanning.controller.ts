@@ -16,7 +16,7 @@ import DatePicker from "sap/m/DatePicker";
 import Item from "sap/ui/core/Item";
 import MessageToast from "sap/m/MessageToast";
 import Fragment from "sap/ui/core/Fragment";
-// En los imports de arriba, asegúrate de tener al menos el chart principal
+// En los imports de arriba, asegúrate de tener al menos el chart principal.
 import BulletMicroChart from "sap/suite/ui/microchart/BulletMicroChart";
 import BusyDialog from "sap/m/BusyDialog";
 import BusyIndicator from "sap/ui/core/BusyIndicator"; //
