@@ -25,7 +25,7 @@ import MessageBox from "sap/m/MessageBox";
 
 declare var google: any;
 
-/***
+/**
  * @namespace routeplanningmantto.controller
  */
 export default class StrategicPlanning extends Controller {
@@ -62,7 +62,7 @@ private _pCalendarDialog: Promise<Dialog>;
 
     if (ooDataModel) {
         BusyIndicator.show(0);
-        const aFilters = [new Filter("Mail", FilterOperator.EQ, "rmercado@melco.com.mx|032026")];
+        const aFilters = [new Filter("Mail", FilterOperator.EQ, "rmercado@melco.com.mx|032026")]; //rmercado@melco.com.mx
 
         ooDataModel.read("/HeaderRouteSet", {
             filters: aFilters,
