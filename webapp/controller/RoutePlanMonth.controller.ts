@@ -9,7 +9,7 @@ import ActionSheet from "sap/m/ActionSheet";
 import Button from "sap/m/Button";
 
 
-/**t
+/**tdadsada
  * @namespace routeplanningmantto.controller
  */
 export default class RoutePlanMonth extends Controller {
@@ -18,6 +18,7 @@ export default class RoutePlanMonth extends Controller {
     private _polylines: any[] = [];
     private _base = { lat: 19.54471, lng: -99.19305 };
     private _cpDialog: any;
+    private _cpDialog2: any;
     private _oActionSheet: any;
     private _oReassignDialog: any;
     private _sSelectedAppointmentPath: string;
