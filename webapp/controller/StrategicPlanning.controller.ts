@@ -19,7 +19,7 @@ import Fragment from "sap/ui/core/Fragment";
 // En los imports de arriba, asegúrate de tener al menos el chart principal.
 import BulletMicroChart from "sap/suite/ui/microchart/BulletMicroChart";
 import BusyDialog from "sap/m/BusyDialog";
-import BusyIndicator from "sap/ui/core/BusyIndicator"; //
+import BusyIndicator from "sap/ui/core/BusyIndicator"; // fdfsfdf
 import MessageBox from "sap/m/MessageBox";
 import Sorter from "sap/ui/model/Sorter";
 import MultiComboBox from "sap/m/MultiComboBox";
