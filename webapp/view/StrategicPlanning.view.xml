@@ -60,7 +60,7 @@
                                 id="mecanicoFilter" 
                                 width="180px" 
                                 placeholder="Filtrar por mecánico..." 
-                                items="{path: 'db>/Mecanicos'}"
+                                items="{path: 'db>/MecanicosStats'}"
                                 visible="{view>/isOptimized}"
                                 selectionFinish=".onFilterMecanico"> 
                                 <core:Item key="{db>Nombre}" text="{db>Nombre}" />
@@ -105,7 +105,14 @@
 
                             <List id="routeList" 
                                 visible="{view>/isOptimized}"
-                                items="{path: 'db>/ServiciosPendientes', sorter: [{path: 'RutaID', group: true}, {path: 'CargaNum', descending: false}], groupHeaderFactory: '.getGroupHeader'}" 
+                                items="{
+        path: 'db>/ServiciosPendientes', 
+        sorter: [
+            {path: 'GroupKey', group: true, descending: false}, 
+            {path: 'CargaNum', descending: false}
+        ], 
+        groupHeaderFactory: '.getGroupHeader'
+    }" 
                                 showSeparators="Inner"
                                 growing="true"
                                 growingThreshold="50">

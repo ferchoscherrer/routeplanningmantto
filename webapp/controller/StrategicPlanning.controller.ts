@@ -21,6 +21,8 @@ import BulletMicroChart from "sap/suite/ui/microchart/BulletMicroChart";
 import BusyDialog from "sap/m/BusyDialog";
 import BusyIndicator from "sap/ui/core/BusyIndicator"; //
 import MessageBox from "sap/m/MessageBox";
+import Sorter from "sap/ui/model/Sorter";
+import MultiComboBox from "sap/m/MultiComboBox";
 
 
 declare var google: any;
@@ -61,8 +63,8 @@ private _pCalendarDialog: Promise<Dialog>;
     this.getView()?.setModel(oViewModel, "view");
 
     if (ooDataModel) {
-        BusyIndicator.show(0);
-        const aFilters = [new Filter("Mail", FilterOperator.EQ, "rmercado@melco.com.mx|032026")]; //rmercado@melco.com.mx
+        // Filtro de ejemplo
+        const aFilters = [new Filter("Mail", FilterOperator.EQ, "rmercado@melco.com.mx|032026")]; // rmercado@melco.com.mx //ldelacruz@melco.com.mx
 
         ooDataModel.read("/HeaderRouteSet", {
             filters: aFilters,
@@ -72,30 +74,25 @@ private _pCalendarDialog: Promise<Dialog>;
                     const oHeaderData = oData.results[0];
                     const aServicios = oHeaderData.ServicesRouteSet?.results || [];
 
-                    console.log(">>> 1. Datos iniciales de SAP cargados:", aServicios);
-
                     if (aServicios.length > 0) {
-                        MessageToast.show("Geocodificando puntos de entrega...");
-                        
+                        // Llamamos a la geocodificación (el BusyDialog interno se encarga del feedback)
                         this._geocodeAllServices(aServicios).then(() => {
-                            console.log(">>> 3. Geocodificación finalizada. Datos actualizados:", aServicios);
+                            console.log(">>> Geocodificación terminada. Procediendo a renderizar.");
                             
                             const oDbModel = new JSONModel(oHeaderData);
                             this.getView()?.setModel(oDbModel, "db");
+                            
+                            // Corremos el algoritmo inicial
                             this._runRoutingAlgorithm(oDbModel);
-                            BusyIndicator.hide();
                         }).catch((oError) => {
-                            console.error("Error en geocodificación:", oError);
-                            BusyIndicator.hide();
+                            console.error("Error crítico en el flujo de inicio:", oError);
                         });
                     }
-                } else {
-                    BusyIndicator.hide();
                 }
             },
             error: (oError: any) => {
-                BusyIndicator.hide();
-                console.error("Error al cargar OData:", oError);
+                console.error("Error al cargar OData desde SAP:", oError);
+                MessageBox.error("No se pudieron recuperar los datos de la ruta.");
             }
         });
     }
@@ -106,19 +103,41 @@ private _pCalendarDialog: Promise<Dialog>;
  */
 private async _geocodeAllServices(aServicios: any[]): Promise<void> {
     const oGeocoder = new window.google.maps.Geocoder();
-    console.log(">>> 2. Iniciando iteración de geocodificación...");
+    
+    // Título corto para evitar truncamiento y descripción detallada en el cuerpo (text)
+    const oBusyDialog = new BusyDialog({
+        title: "Actualizando Direcciones",
+        text: "Conectando con Google Maps API...",
+        showCancelButton: false
+    });
+    this.getView()?.addDependent(oBusyDialog);
+    oBusyDialog.open();
+
+    const iTotal = aServicios.length;
+    let iCurrent = 0;
+
+    console.log(">>> Iniciando iteración de geocodificación con feedback visual...");
 
     for (const oServicio of aServicios) {
-        // Verificamos si realmente necesita geocodificación
+        iCurrent++;
+        
+        // El uso de \n ayuda a que el diálogo se expanda verticalmente y se lea todo
+        const sMensaje = `Geocodificando Puntos de Servicio:\n${oServicio.Nombre || oServicio.Equipo}\n\nProgreso: ${iCurrent} de ${iTotal}`;
+        oBusyDialog.setText(sMensaje);
+
+        // Solo geocodificar si no tiene coordenadas válidas
         if (!oServicio.Lat || oServicio.Lat === "" || oServicio.Lat === "0") {
             const sDireccion = oServicio.DireccionCompleta || oServicio.Direccion;
             
             try {
                 const oResult: any = await new Promise((resolve, reject) => {
-                    oGeocoder.geocode({ address: sDireccion }, (results: any, status: string) => {
-                        if (status === "OK" && results[0]) resolve(results[0].geometry.location);
-                        else reject(status);
-                    });
+                    // Delay de 100ms para evitar el error OVER_QUERY_LIMIT
+                    setTimeout(() => {
+                        oGeocoder.geocode({ address: sDireccion }, (results: any, status: string) => {
+                            if (status === "OK" && results[0]) resolve(results[0].geometry.location);
+                            else reject(status);
+                        });
+                    }, 100); 
                 });
 
                 const sOldLat = oServicio.Lat;
@@ -127,20 +146,21 @@ private async _geocodeAllServices(aServicios: any[]): Promise<void> {
                 oServicio.Lat = oResult.lat().toString();
                 oServicio.Lng = oResult.lng().toString();
 
-                console.log(`📍 MODIFICADO - Equipo: ${oServicio.Equipo}`);
-                console.log(`   Dirección: ${sDireccion}`);
-                console.log(`   Coordenadas: [${sOldLat}, ${sOldLng}] -> [${oServicio.Lat}, ${oServicio.Lng}]`);
+                console.log(`📍 MODIFICADO - Equipo: ${oServicio.Equipo} | [${sOldLat}, ${sOldLng}] -> [${oServicio.Lat}, ${oServicio.Lng}]`);
             } catch (e) {
                 console.warn(`⚠️ No se pudo geocodificar: ${oServicio.Nombre}. Usando coordenadas base.`);
                 oServicio.Lat = this.BASE_COORDS.lat.toString();
                 oServicio.Lng = this.BASE_COORDS.lng.toString();
             }
         } else {
-            console.log(`✅ OMITIDO - ${oServicio.Equipo} ya tiene coordenadas: [${oServicio.Lat}, ${oServicio.Lng}]`);
+            console.log(`✅ OMITIDO - ${oServicio.Equipo} ya tiene coordenadas.`);
         }
     }
-}
 
+    // Cerramos y destruimos el diálogo al finalizar para liberar memoria
+    oBusyDialog.close();
+    oBusyDialog.destroy();
+}
 
 public onAfterRendering(): void {
     // Forzamos un pequeño delay para que el DOM esté 100% listo
@@ -312,7 +332,6 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
     aServicios.forEach((s: any) => {
         s.Cliente = s.Nombre; 
         s.Eq = s.Equipo;
-        // Limpiamos banderas de ubicación compartida para evitar iconos residuales
         s.isSharedLocation = false;
         s.SharedLocationIcon = "";
         
@@ -327,6 +346,9 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
             const oFechaObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
             const sNombreDia = oFechaObj.toLocaleDateString('es-MX', { weekday: 'long' });
             s.FechaFull = sNombreDia.charAt(0).toUpperCase() + sNombreDia.slice(1) + ", " + s.FechaProgramada;
+            
+            // Llave técnica para asegurar orden cronológico (YYYYMMDD)
+            s.SortKey = year + month + day;
         }
     });
 
@@ -341,7 +363,14 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
         oServiciosPorFecha[s.FechaProgramada].push(s);
     });
 
-    Object.keys(oServiciosPorFecha).sort().forEach(sFecha => {
+    // Ordenamos las fechas físicamente antes de iterar para evitar dispersión
+    const aFechasOrdenadas = Object.keys(oServiciosPorFecha).sort((a, b) => {
+        const dateA: any = a.split('/').reverse().join('');
+        const dateB: any = b.split('/').reverse().join('');
+        return dateA - dateB;
+    });
+
+    aFechasOrdenadas.forEach(sFecha => {
         const aEquiposDelDia = oServiciosPorFecha[sFecha];
         let bHayEquiposLibres = true;
         let iConsecutivoRuta = 1;
@@ -382,7 +411,6 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
             let puntoAnterior = oBaseMecanico;
             let fKmAcumuladosRuta = 0;
 
-            // CÁLCULO SECUENCIAL TRAMO A TRAMO
             aParaAsignar.forEach((s: any, index: number) => {
                 const fLatDest = parseFloat(s.Lat);
                 const fLngDest = parseFloat(s.Lng);
@@ -394,7 +422,6 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
                 s.CargaNum = index + 1;
                 s.DistanciaBase_km = distTramo.toFixed(1); 
 
-                // Lógica de detección de ubicación compartida (distancia < 100 metros)
                 if (index > 0 && distTramo < 0.1) {
                     s.isSharedLocation = true;
                     s.SharedLocationIcon = "📍";
@@ -405,8 +432,10 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
 
             fKmAcumuladosRuta += this._calculateHaversine(puntoAnterior.lat, puntoAnterior.lng, oBaseMecanico.lat, oBaseMecanico.lng);
             
-            // --- ID CON KM TOTALES (Para el GroupHeader) ---
+            // Importante: La GroupKey ahora lleva el prefijo de SortKey para que el List la ordene bien
             const sRutaID = `RUTA-${sNombreBase}-${iConsecutivoRuta} | ${fKmAcumuladosRuta.toFixed(1)} km`;
+            const [d, m, y] = sFecha.split('/');
+            const sGroupKey = `${y}${m}${d} | ${sRutaID}`;
             
             oResumenRutas[sRutaID] = { 
                 totalKm: fKmAcumuladosRuta, 
@@ -415,6 +444,7 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
 
             aParaAsignar.forEach((s: any) => {
                 s.RutaID = sRutaID;
+                s.GroupKey = sGroupKey; // Asignamos la llave de agrupación ordenada
                 s.fKmAcumuladosRuta = fKmAcumuladosRuta.toFixed(1);
                 oCargaGlobalMecanicos[oMecanicoAsignado.Nombre]++;
             });
@@ -450,7 +480,6 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
     // --- FASE 5: CITAS ---
     const aCitasGlobales = aServicios.map((s: any) => {
         const [day, month, year] = s.FechaProgramada.split('/');
-        // Si es ubicación compartida, inyectamos el Icono en el título
         const sAppointmentTitle = s.isSharedLocation ? `${s.SharedLocationIcon} ${s.Equipo}` : `${s.Equipo}`;
 
         return {
@@ -467,18 +496,39 @@ private _runRoutingAlgorithm(oModel: JSONModel): void {
 }
 
 
-
 public getGroupHeader(oGroup: any): GroupHeaderListItem {
     const oModel = this.getView()?.getModel("db") as JSONModel;
     const aItems: any[] = oModel?.getProperty("/ServiciosPendientes") || [];
-    const oContext = aItems.find((s: any) => s.RutaID === oGroup.key);
     
-    const sTitle = `${(oContext?.FechaFull || "").split(',')[0].toUpperCase()} | ${oGroup.key}`;
+    // 1. Extraer partes de la nueva GroupKey (Formato: "20260301 | RUTA...")
+    const sRawKey = oGroup.key || "";
+    const aParts = sRawKey.split(" | ");
+    const sFechaTecnica = aParts[0]; // "20260301"
+    const sRutaID = aParts[1] || sRawKey;
+
+    // 2. Buscar el contexto para obtener FechaFull (opcional, pero mantenemos tu lógica)
+    const oContext = aItems.find((s: any) => s.GroupKey === sRawKey);
+    
+    // 3. Formatear el título: Si tenemos FechaFull la usamos, si no, reconstruimos desde la llave técnica
+    let sTitle = "";
+    if (oContext && oContext.FechaFull) {
+        sTitle = `${oContext.FechaFull.split(',')[0].toUpperCase()} | ${sRutaID}`;
+    } else if (sFechaTecnica.length === 8) {
+        // Fallback: DD/MM/YYYY | RUTA...
+        sTitle = `${sFechaTecnica.substring(6, 8)}/${sFechaTecnica.substring(4, 6)}/${sFechaTecnica.substring(0, 4)} | ${sRutaID}`;
+    } else {
+        sTitle = sRawKey;
+    }
     
     const oHeader = new GroupHeaderListItem({ 
         title: sTitle, 
         upperCase: false, 
-        type: "Inactive" 
+        type: "Active", // Cambiado a Active para que responda al click
+        press: () => {
+            // CAMBIO CLAVE: Enviamos sRawKey completa para que la función de pintado 
+            // tenga la fecha técnica y pueda filtrar los servicios de este día exacto.
+            this.onSelectRouteHeader(sRawKey);
+        }
     });
 
     // AÑADE ESTA LÍNEA para poder darle estilo en el CSS
@@ -486,6 +536,7 @@ public getGroupHeader(oGroup: any): GroupHeaderListItem {
 
     return oHeader;
 }
+
 
     private _calculateHaversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
         const R = 6371; 
@@ -520,6 +571,7 @@ private _calculateFrequencyDate(frecuencia: string, year: number, month: number)
         const aParts = sUpper.split("-");
         const sSemana = aParts[0]; // "1", "2", "3", etc.
         const sDiaBusqueda = aParts[1]; // "LUN", "MAR", etc.
+        
 
         const iTargetDay = daysMap[sDiaBusqueda];
         
@@ -569,7 +621,7 @@ private _calculateFrequencyDate(frecuencia: string, year: number, month: number)
     }
 
 public onFilterMecanico(oEvent: any): void {
-    // 1. Obtener las llaves seleccionadas (que corresponden al nombre del mecánico en nuestro item)
+    // 1. Obtener las llaves seleccionadas (que corresponden al nombre del mecánico)
     const aSelectedKeys = oEvent.getSource().getSelectedKeys() as string[];
     
     // 2. Obtener el binding de la lista de rutas sugeridas
@@ -581,33 +633,47 @@ public onFilterMecanico(oEvent: any): void {
         return;
     }
 
+    // --- NUEVO: Limpiar rutas previas en el mapa al filtrar ---
+    this._clearAllRoutes();
+
     // 3. Crear el array de filtros
     let aFilters: Filter[] = [];
 
     if (aSelectedKeys.length > 0) {
-        // Creamos un filtro por cada mecánico seleccionado
         const aMecanicoFilters = aSelectedKeys.map((sName: string) => {
-            // "AsignadoA" es el campo que contiene el nombre del mecánico tras la optimización
             return new Filter("AsignadoA", FilterOperator.EQ, sName);
         });
         
-        // Agrupamos los filtros en un solo filtro lógico OR (and: false)
-        // Esto permite ver servicios del Mecánico A O del Mecánico B
         aFilters.push(new Filter({
             filters: aMecanicoFilters,
             and: false
         }));
     }
 
-    // 4. Aplicar el filtro al binding
-    // Usamos FilterType.Application para asegurar que el filtro persista correctamente
-    oBinding.filter(aFilters, FilterType.Application);
+    // 4. Definir Sorters para mantener el orden por día y secuencia de visita
+    // El primer Sorter con vGroup: true es CRÍTICO para que no desaparezcan las cabeceras de fecha
+    const oGroupSorter = new Sorter("GroupKey", false, true); 
+    const oCargaSorter = new Sorter("CargaNum", false, false);
 
-    // Opcional: Feedback al usuario si la lista queda vacía
-    if (aFilters.length > 0) {
-        MessageToast.show("Filtrando rutas por mecánicos seleccionados");
+    // 5. Aplicar el filtro y re-aplicar el ordenamiento cronológico
+    oBinding.filter(aFilters, FilterType.Application);
+    oBinding.sort([oGroupSorter, oCargaSorter]);
+
+    // Opcional: Feedback al usuario
+    if (aSelectedKeys.length > 0) {
+        MessageToast.show(`Filtrando rutas para ${aSelectedKeys.length} mecánico(s)`);
+    } else {
+        // Si se limpia el filtro, regresamos el mapa a la base
+        if (this._oMap && this._baseCoords) {
+            this._oMap.panTo(this._baseCoords);
+            this._oMap.setZoom(12);
+        }
     }
 }
+
+
+
+
     public onNavBack(): void {
         const oHistory = History.getInstance();
         if (oHistory.getPreviousHash() !== undefined) window.history.go(-1);
@@ -621,33 +687,58 @@ public onSelectService(oEvent: any): void {
     const oModel = this.getView()?.getModel("db") as JSONModel;
 
     // 1. Validaciones iniciales
-    if (!oService.RutaID || !this._oMap) {
+    if (!this._oMap || !oService.Lat || !oService.Lng || !this._baseCoords) {
         return;
     }
 
-    // 2. Limpiar trazos y marcadores previos para no encimar rutas
+    // 2. Notificación al usuario (Mensaje solicitado)
+    const sMecanico = oService.AsignadoA || "Sin asignar";
+    const sEquipo = oService.Equipo || "Servicio desconocido";
+    MessageToast.show(`Visualizando trayecto:\nMecánico: ${sMecanico}\nServicio: ${sEquipo}`);
+
+    // 3. Limpiar trazos y marcadores previos para no encimar rutas
     this._clearAllRoutes();
 
-    // 3. Obtener todos los puntos de la misma ruta y ordenarlos por número de carga
-    const aTodosLosServicios = oModel.getProperty("/ServiciosPendientes") || [];
-    const aPuntosDeEstaRuta = aTodosLosServicios
-        .filter((s: any) => s.RutaID === oService.RutaID)
-        .sort((a: any, b: any) => a.CargaNum - b.CargaNum);
+    // 4. Configurar el trayecto individual (Punto A: Base -> Punto B: Servicio)
+    const oOrigin = new google.maps.LatLng(this._baseCoords.lat, this._baseCoords.lng);
+    const oDestination = new google.maps.LatLng(parseFloat(oService.Lat), parseFloat(oService.Lng));
 
-    // 4. Invocar el renderizado de la ruta única
-    // Usamos el índice 0 para que tome el primer color (azul) y los pines correspondientes
-    this._renderSingleRoute(aPuntosDeEstaRuta, "#2B6CB0", 0);
+    const oDirectionsService = new google.maps.DirectionsService();
+    const oDirectionsRenderer = new google.maps.DirectionsRenderer({
+        map: this._oMap,
+        suppressMarkers: false, // Muestra marcadores A y B automáticos
+        polylineOptions: {
+            strokeColor: "#FF5733", // Color naranja para diferenciar selección individual
+            strokeWeight: 6,
+            strokeOpacity: 0.8
+        }
+    });
 
-    // 5. Feedback visual: Mover el mapa al punto seleccionado
-    const oPos = { 
-        lat: parseFloat(oService.Lat), 
-        lng: parseFloat(oService.Lng) 
-    };
-    
-    this._oMap.panTo(oPos);
-    this._oMap.setZoom(14);
+    // Guardar referencia para limpieza posterior
+    this._aDirectionsRenderers.push(oDirectionsRenderer);
 
-    console.log("Mostrando ruta para el mecánico:", oService.AsignadoA);
+    // 5. Invocar el renderizado del trayecto único
+    oDirectionsService.route({
+        origin: oOrigin,
+        destination: oDestination,
+        travelMode: google.maps.TravelMode.DRIVING
+    }, (result: any, status: any) => {
+        if (status === google.maps.DirectionsStatus.OK) {
+            oDirectionsRenderer.setDirections(result);
+            
+            // Ajustar cámara para ver el trayecto completo
+            const bounds = new google.maps.LatLngBounds();
+            bounds.extend(oOrigin);
+            bounds.extend(oDestination);
+            this._oMap.fitBounds(bounds);
+        } else {
+            // Fallback: Si falla la ruta, solo centrar en el punto
+            this._oMap.panTo(oDestination);
+            this._oMap.setZoom(16);
+        }
+    });
+
+    console.log(`Mostrando trayecto individual: Mecánico ${sMecanico}, Equipo ${sEquipo}`);
 }
 
 
@@ -665,20 +756,54 @@ private _clearAllRoutes(): void {
  */
 public onRenderAllRoutes(): void {
     if (!this._oMap) return;
+
+    // 1. Limpiar todos los trazos y marcadores previos
     this._clearAllRoutes();
 
     const oModel = this.getView()?.getModel("db") as JSONModel;
     const aServicios = oModel.getProperty("/ServiciosPendientes") || [];
-    const aRutasUnicas = [...new Set(aServicios.map((s: any) => s.RutaID))].filter(id => !!id);
+    
+    // 2. Obtener los mecánicos seleccionados del MultiComboBox
+    const oMecanicoFilter = this.byId("mecanicoFilter") as MultiComboBox;
+    const aSelectedMecanicos = oMecanicoFilter ? oMecanicoFilter.getSelectedKeys() : [];
 
-    aRutasUnicas.forEach((sRutaID, index) => {
-        const aPuntosRuta = aServicios
-            .filter((s: any) => s.RutaID === sRutaID)
+    // 3. Filtrar servicios: Si hay selección, filtramos por mecánico. Si no, tomamos todos.
+    let aServiciosAPintar = aServicios;
+    if (aSelectedMecanicos.length > 0) {
+        aServiciosAPintar = aServicios.filter((s: any) => 
+            aSelectedMecanicos.includes(s.AsignadoA)
+        );
+    }
+
+    // 4. Identificar las rutas únicas (GroupKey) de los servicios resultantes
+    // Usamos GroupKey para mantener la separación por día y ruta
+    const aRutasUnicas = [...new Set(aServiciosAPintar.map((s: any) => s.GroupKey))].filter(id => !!id);
+
+    if (aRutasUnicas.length === 0) {
+        MessageToast.show("No hay rutas para mostrar con los filtros seleccionados.");
+        return;
+    }
+
+    // 5. Renderizar cada ruta encontrada
+    aRutasUnicas.forEach((sGroupKey, index) => {
+        const aPuntosRuta = aServiciosAPintar
+            .filter((s: any) => s.GroupKey === sGroupKey)
             .sort((a: any, b: any) => a.CargaNum - b.CargaNum);
 
-        // Pasamos el index (tercer parámetro) para que el Pin cambie de color por mecánico
-        this._renderSingleRoute(aPuntosRuta, this._aColors[index % this._aColors.length], index);
+        // Usamos la paleta de colores del controlador
+        const sColor = this._aColors[index % this._aColors.length];
+        this._renderSingleRoute(aPuntosRuta, sColor, index);
     });
+
+    // 6. Ajustar el zoom del mapa para encuadrar los puntos pintados
+    this._fitMapToVisibleRoutes(aServiciosAPintar);
+
+    // 7. Mensaje de feedback
+    if (aSelectedMecanicos.length > 0) {
+        MessageToast.show(`Pintando rutas para ${aSelectedMecanicos.length} técnico(s)`);
+    } else {
+        MessageToast.show("Pintando todas las rutas de la planificación");
+    }
 }
 
 /**
@@ -1261,7 +1386,87 @@ public formatSAPDateRange(sIni: string, sFin: string): string {
         ? `Vigencia: ${sFechaInicio} al ${sFechaFin}${sDuracion}` 
         : `Vigencia: ${sFechaInicio}`;
 }
+public onSelectRouteHeader(sRouteID: string): void {
+    if (!this._oMap) return;
 
+    // 1. Limpiar trazos previos
+    this._clearAllRoutes();
+
+    const oModel = this.getView()?.getModel("db") as JSONModel;
+    const aServicios = oModel.getProperty("/ServiciosPendientes") || [];
+    
+    // 2. Filtrar servicios que coincidan EXACTAMENTE con el grupo (Día + Ruta)
+    // Usamos sRouteID que es la GroupKey (ej: "20260301 | RUTA-BASE-1")
+    const aPuntosDelDia = aServicios.filter((s: any) => {
+        return s.GroupKey === sRouteID;
+    }).sort((a: any, b: any) => (a.CargaNum || 0) - (b.CargaNum || 0));
+
+    if (aPuntosDelDia.length > 0) {
+        // 3. Notificación al usuario con validación de datos
+        const oPrimerServicio = aPuntosDelDia[0];
+        const sMecanico = oPrimerServicio.AsignadoA || "Técnico";
+        
+        // Si FechaFull es undefined, extraemos la fecha de la GroupKey (YYYYMMDD)
+        let sFecha = oPrimerServicio.FechaFull;
+        if (!sFecha && sRouteID.includes("|")) {
+            const sKey = sRouteID.split("|")[0].trim();
+            sFecha = `${sKey.substring(6, 8)}/${sKey.substring(4, 6)}/${sKey.substring(0, 4)}`;
+        }
+
+        MessageToast.show(`Visualizando trayecto del día:\n${sFecha}\nAsignado a: ${sMecanico}`);
+
+        // 4. Pintar la ruta en el mapa
+        this._renderSingleRoute(aPuntosDelDia, "#2B6CB0", 0);
+        
+        // 5. Enfocar mapa en los puntos del día
+        const bounds = new google.maps.LatLngBounds();
+        if (this._baseCoords) {
+            bounds.extend(new google.maps.LatLng(this._baseCoords.lat, this._baseCoords.lng));
+        }
+        
+        aPuntosDelDia.forEach((s: any) => {
+            if (s.Lat && s.Lng) {
+                bounds.extend(new google.maps.LatLng(parseFloat(s.Lat), parseFloat(s.Lng)));
+            }
+        });
+        this._oMap.fitBounds(bounds);
+    } else {
+        MessageToast.show("No se encontraron servicios para esta fecha y ruta.");
+    }
+}
+
+/**
+ * Ajusta el zoom y centro del mapa para que todos los servicios 
+ * pintados actualmente sean visibles en pantalla.
+ */
+private _fitMapToVisibleRoutes(aServicios: any[]): void {
+    if (!this._oMap || aServicios.length === 0) return;
+
+    const bounds = new google.maps.LatLngBounds();
+
+    // 1. Incluimos siempre la base operativa en el encuadre
+    if (this._baseCoords) {
+        bounds.extend(new google.maps.LatLng(this._baseCoords.lat, this._baseCoords.lng));
+    } else {
+        bounds.extend(new google.maps.LatLng(this.BASE_COORDS.lat, this.BASE_COORDS.lng));
+    }
+    
+    // 2. Extendemos los límites para incluir cada servicio
+    aServicios.forEach((s: any) => {
+        if (s.Lat && s.Lng) {
+            bounds.extend(new google.maps.LatLng(parseFloat(s.Lat), parseFloat(s.Lng)));
+        }
+    });
+
+    // 3. Aplicamos los límites al mapa
+    this._oMap.fitBounds(bounds);
+
+    // Opcional: Evitar un zoom demasiado cercano si hay pocos puntos
+    const listener = google.maps.event.addListener(this._oMap, "idle", () => {
+        if (this._oMap.getZoom() > 16) this._oMap.setZoom(16);
+        google.maps.event.removeListener(listener);
+    });
+}
 
 
 }
