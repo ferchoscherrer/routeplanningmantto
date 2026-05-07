@@ -4,180 +4,133 @@
     displayBlock="true"
     xmlns="sap.m"
     xmlns:core="sap.ui.core"
-    xmlns:layout="sap.ui.layout"
-    xmlns:unified="sap.ui.unified"
-    xmlns:dnd="sap.ui.core.dnd">
+    xmlns:mc="sap.suite.ui.microchart">
     
-    <Page title="Planeación Estratégica Mensual" showNavButton="true" navButtonPress=".onNavBack">
-        <headerContent>
-            <Button text="Consola de Despacho" icon="sap-icon://TableChart" press=".onToggleSideContent" />
-            <Button text="Simular Optimización" type="Emphasized" icon="sap-icon://simulate" press=".onRunOptimization" />
-        </headerContent>
-
+    <Page title="Programación Mensual de Servicios" showNavButton="true" navButtonPress=".onNavBack">
         <content>
-            <layout:DynamicSideContent
-                id="DynamicSideContent"
-                sideContentFallDown="BelowM"
-                sideContentPosition="End"
-                containerQuery="true"
-                showSideContent="true">
-
-                <layout:mainContent>
-                    <VBox height="50%" renderType="Bare">
-                       <VBox height="600px" width="100%" class="sapUiTinyMargin">
-           <core:HTML 
-    id="mapMonthContainer" 
-    preferDOM="true"
-    afterRendering=".onMapContainerRendered"
-    content='&lt;div id="mapMonthDiv" style="height: 600px; width: 100%; min-height: 600px; position: relative;"&gt;&lt;/div&gt;'>
-</core:HTML>
-        </VBox>
-
-<VBox height="40%" width="100%" style="border-top: 2px solid #3f51b5;" class="sapUiTinyMarginTop">
-    <Toolbar style="Clear">
-        <ToolbarSpacer />
-        <Button 
-            icon="sap-icon://sys-cancel-2" 
-            text="Ver todas las rutas" 
-            type="Ghost"
-            press=".onClearRouteFilter" />
-        <Button 
-            icon="sap-icon://full-screen" 
-            press=".onToggleFullScreen" />
-        <SegmentedButton selectedKey="{localModel>/CurrentView}" selectionChange=".onViewChange">
-            <items>
-                <SegmentedButtonItem key="Mecanicos" icon="sap-icon://employee-pane" text="Por Mecánico" />
-                <SegmentedButtonItem key="Mensual" icon="sap-icon://calendar" text="Mes Completo" />
-            </items>
-        </SegmentedButton>
-        <ToolbarSpacer />
-    </Toolbar>
-
-    <PlanningCalendar
-        id="calendarMecanicos"
-        visible="{= ${localModel>/CurrentView} === 'Mecanicos' }"
-        startDate="{localModel>/StartDate}"
-        rows="{localModel>/Mecanicos}"
-        viewKey="D"
-        appointmentSelect=".onAppointmentSelect">
-        <views>
-            <PlanningCalendarView key="D" intervalType="Day" description="Día" intervalsS="1" intervalsM="2" intervalsL="3" />
-            <PlanningCalendarView key="W" intervalType="Day" description="Semana" intervalsS="3" intervalsM="5" intervalsL="7" />
-        </views>
-        <rows>
-            <PlanningCalendarRow
-                title="{localModel>Nombre}"
-                text="{localModel>Especialidad}"
-                appointments="{path: 'localModel>Citas', templateShareable: false}">
-                <appointments>
-                    <unified:CalendarAppointment
-                        startDate="{localModel>startDate}"
-                        endDate="{localModel>endDate}"
-                        title="{localModel>title}"
-                        text="{localModel>text}"
-                        type="{localModel>type}"
-                        icon="{localModel>icon}" />
-                </appointments>
-            </PlanningCalendarRow>
-        </rows>
-    </PlanningCalendar>
-
-    <SinglePlanningCalendar
-        id="calendarMensual"
-        visible="{= ${localModel>/CurrentView} === 'Mensual' }"
-        startDate="{localModel>/StartDate}"
-        viewKey="Month"
-        appointments="{path: 'localModel>/CitasGlobales', templateShareable: false}"
-        appointmentSelect=".onAppointmentSelect">
-        <views>
-            <SinglePlanningCalendarMonthView key="Month" title="Mes" />
-        </views>
-        <appointments>
-            <unified:CalendarAppointment
-                startDate="{localModel>startDate}"
-                endDate="{localModel>endDate}"
-                title="{localModel>title}"
-                text="{localModel>text}"
-                type="{localModel>type}"
-                icon="{localModel>icon}" />
-        </appointments>
-    </SinglePlanningCalendar>
-</VBox>
+            <VBox width="100%" height="100%" renderType="Bare">
+                <HBox class="sapUiSmallMargin" wrap="Wrap" justifyContent="Start" style="flex-shrink: 0;">
+                    <VBox class="metricCardSmall">
+                        <Text text="Equipos" class="metricLabel" />
+                        <Title text="{db>/TotalEquipos}" titleStyle="H2" class="metricValue" />
                     </VBox>
-                </layout:mainContent>
+                    <VBox class="metricCardSmall">
+                        <Text text="Distancia Total" class="metricLabel" />
+                        <Title text="{db>/TotalKm} km" titleStyle="H2" class="metricValue" />
+                    </VBox>
+                    <VBox class="metricCardSmall">
+                        <Text text="Mecánicos" class="metricLabel" />
+                        <Title text="{db>/TotalMecanicos}" titleStyle="H2" class="metricValue" />
+                    </VBox>
+                </HBox>
 
-                <layout:sideContent>
-                    <VBox class="sapUiSmallMargin">
-                        <Title text="Despacho por CP" level="H3" class="sapUiTinyMarginBottom" />
-                        <Text text="Asigne mecánicos para ver rutas en tiempo real." class="sapUiSmallMarginBottom" />
+                <HBox width="100%" renderType="Bare" style="flex-grow: 1;">
+                    <VBox width="60%" class="sapUiSmallMarginBegin sapUiSmallMarginEnd" style="height: 100%;">
+                        <Toolbar style="Clear">
+                            <Title text="Rutas por programar" level="H4" />
+
+                            <ComboBox 
+        id="comboFechaFiltro"
+        width="110px"
+        placeholder="Seleccionar Mes/Año"
+        selectionChange=".onFechaChange">
+        <items>
+            </items>
+    </ComboBox>
+
+                            <ToolbarSpacer />
+                            <Button 
+                                id="btnSelectAll"
+                                icon="sap-icon://multiselect-all" 
+                                tooltip="Seleccionar Todo"
+                                press=".onSelectAll" />
+                            
+                            <Button 
+                                id="btnGenerarOrdenes"
+                                text="Generar Órdenes" 
+                                icon="sap-icon://Post" 
+                                type="Emphasized" 
+                                press=".onGenerarOrdenes"
+                                enabled="false" /> 
+                            <SearchField width="30%" search=".onSearchService" placeholder="Buscar..." />
+                        </Toolbar>
                         
-                        <Table id="tableDespachoLive" 
-                               items="{path: 'localModel>/ServiciosPendientes', sorter: {path: 'CP', group: true}}"
-                               sticky="HeaderToolbar,ColumnHeaders"
-                               fixedLayout="false">
-                            <columns>
-                                <Column width="60%"><Text text="Equipo / CP" /></Column>
-                                <Column width="40%"><Text text="Mecánico" /></Column>
-                            </columns>
-                            <items>
-                                <ColumnListItem>
-                                    <cells>
-                                        <VBox>
-                                        <Text text="{localModel>Cliente}" fontWeight="Bold" />
-                                            <Text text="{localModel>Equipo}" fontWeight="Bold" />
-                                            <ObjectStatus text="{localModel>CP}" state="Indication05" />
-                                            <Text 
-        text="{
-            path: 'localModel>FechaSugerida', 
-            type: 'sap.ui.model.type.Date', 
-            formatOptions: { pattern: 'EE dd/MM', relative: false }
-        }" 
-        visible="{= ${localModel>FechaSugerida} !== null &amp;&amp; ${localModel>FechaSugerida} !== undefined }"
-        class="sapUiTinyMarginTop"
-        renderWhitespace="true" />
-                                        </VBox>
-                                        <Select 
-    width="100%"
-    selectedKey="{localModel>MecanicoAsignadoId}"
-    items="{localModel>/Mecanicos}"
-    change=".onMecanicoChange"
-    forceSelection="false"> <core:Item key="" text="Seleccione mecánico..." />
-    
-    <core:Item key="{localModel>Id}" text="{localModel>Nombre}" enabled="{localModel>Disponible}" />
-</Select>
-                                    </cells>
-                                </ColumnListItem>
-                            </items>
-                        </Table>
-
-                        <Panel headerText="Monitor de Carga de Trabajo" class="sapUiMediumMarginTop">
-                            <List items="{localModel>/Mecanicos}">
+                        <ScrollContainer height="calc(100vh - 250px)" vertical="true" focusable="true">
+                            <List id="routeList" 
+                                mode="None"
+                                items="{
+                                    path: 'db>/ServicesRouteSet/results', 
+                                    sorter: [
+                                        {path: 'GroupKey', group: true, descending: false}, 
+                                        {path: 'CargaNum', descending: false}
+                                    ], 
+                                    groupHeaderFactory: '.getGroupHeader'
+                                }">
                                 <CustomListItem>
-                                    <VBox class="sapUiSmallMargin">
-                                        <HBox justifyContent="SpaceBetween">
-                                            <Text text="{localModel>Nombre}" fontWeight="Bold" />
-                                            <Text text="{localModel>DistanciaTotal} km" />
+                                    <HBox justifyContent="SpaceBetween" alignItems="Center" class="sapUiTinyMargin">
+                                        <HBox alignItems="Center">
+                                            <Avatar displaySize="XS" initials="{db>CargaNum}" class="sapUiTinyMarginEnd" backgroundColor="Accent6" />
+                                            <VBox>
+                                                <Text text="{db>Nombre}" fontWeight="Bold" />
+                                                <Text text="Eq: {db>Tipo} - {db>Equipo}" style="font-size: 0.85rem;" />
+                                                <Text text="Serie: {db>Serie}" fontWeight="Bold" color="#1C4D7D" />
+                                                <HBox visible="{= !!${db>Orden} }">
+                                                    <ObjectStatus text="Orden: {db>Orden}" state="Success" class="sapUiTinyMarginEnd" />
+                                                    <ObjectStatus text="{db>Mensaje}" state="{= ${db>Orden} ? 'Success' : 'Error'}" 
+                                                        visible="{= !!${db>Mensaje} }" />
+                                                </HBox>
+                                                <Text text="Niveles: {db>Niveles}" fontWeight="Bold" color="#1C4D7D" />
+                                                <Text text="Contrato: {db>Contrato} | Pos: {db>Posicion}" fontWeight="Bold" color="#1C4D7D" />
+                                                <Text text="Mecánico: {db>Mecanico}" fontWeight="Bold" color="#1C4D7D" />
+                                                <Text text="Ultima: {db>UltimaOrden}" fontWeight="Bold" color="#1C4D7D" />
+                                               <VBox class="sapUiTinyMarginTop">
+    <Text text="PROGRAMA DE MANTENIMIENTO ANUAL" fontWeight="Bold" color="#1C4D7D" />
+    
+    <Text 
+        text="{
+            path: 'db>Paquetes',
+            formatter: '.formatPaquetes'
+        }" 
+        style="font-size: 0.85rem;" 
+        color="#666666" />
+</VBox>
+                                            </VBox>
                                         </HBox>
-                                        <ProgressIndicator
-                                            percentValue="{localModel>PorcentajeOcupacion}"
-                                            displayValue="{localModel>TiempoEstimado}"
-                                            state="{localModel>EstadoCarga}"
-                                            showValue="true" />
-                                    </VBox>
+
+                                        <HBox alignItems="Center">
+                                            <VBox alignItems="End" class="sapUiSmallMarginEnd">
+                                                <Text text="{db>FechaFull}" fontWeight="Bold" />
+                                                <ObjectStatus text="{db>RankingTexto}" state="Indication05" />
+                                            </VBox>
+                                            <CheckBox selected="{db>Selected}" select=".onSelectionChange" visible="{= !${db>Orden} }" />
+                                        </HBox>
+                                    </HBox>
                                 </CustomListItem>
                             </List>
-                        </Panel>
-
-                        <Button text="Sincronizar Calendario" 
-                                type="Emphasized" 
-                                width="100%" 
-                                class="sapUiLargeMarginTop"
-                                icon="sap-icon://save"
-                                press=".onConfirmAllAssignments" />
+                        </ScrollContainer>
                     </VBox>
-                </layout:sideContent>
 
-            </layout:DynamicSideContent>
+                    <VBox width="40%" style="border-left: 1px solid #e5e5e5;" class="sapUiSmallMargin">
+                        <Title text="Carga de Trabajo por Técnico" level="H4" class="sapUiSmallMarginBottom" />
+                        <List id="mechanicsList" items="{path: 'db>/MecanicosStats', sorter: {path: 'PorcentajeCarga', descending: true}}">
+                            <CustomListItem>
+                                <VBox class="sapUiSmallMargin">
+                                    <HBox justifyContent="SpaceBetween">
+                                        <Text text="{db>Nombre}" fontWeight="Bold" />
+                                        <Text text="{db>KmTotales} km totales" style="font-size: 0.85rem; color: #666;" />
+                                    </HBox>
+                                    <ProgressIndicator 
+                                        percentValue="{db>PorcentajeCarga}" 
+                                        displayValue="{db>PorcentajeCarga}%" 
+                                        state="{path: 'db>PorcentajeCarga', formatter: '.formatProgressState'}" 
+                                        height="1.2rem"
+                                        class="sapUiTinyMarginTop" />
+                                </VBox>
+                            </CustomListItem>
+                        </List>
+                    </VBox>
+                </HBox>
+            </VBox>
         </content>
     </Page>
 </mvc:View>

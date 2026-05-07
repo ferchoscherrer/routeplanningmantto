@@ -64,7 +64,7 @@ private _pCalendarDialog: Promise<Dialog>;
 
     if (ooDataModel) {
         // Filtro de ejemplo
-        const aFilters = [new Filter("Mail", FilterOperator.EQ, "rmercado@melco.com.mx|032026")]; // rmercado@melco.com.mx //ldelacruz@melco.com.mx
+        const aFilters = [new Filter("Mail", FilterOperator.EQ, "ldelacruz@melco.com.mx|032026")]; // rmercado@melco.com.mx //ldelacruz@melco.com.mx
 
         ooDataModel.read("/HeaderRouteSet", {
             filters: aFilters,
