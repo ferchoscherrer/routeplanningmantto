@@ -267,3 +267,30 @@ div[id*="map_canvas_strategy"] {
 .scrollWithPadding ul {
     padding-bottom: 120px !important;
 }
+
+
+.statusTermino {
+    color: #bb0000 !important;
+    font-weight: bold;
+}
+
+.statusVigente {
+    color: #2b7d2b !important;
+    font-weight: bold;
+}
+
+.iconMargin {
+    margin-right: 0.3rem;
+}
+
+
+/* Selecciona el item que tenga la propiedad bloqueado='true' */
+[data-bloqueado="true"] {
+    background-color: rgba(255, 0, 0, 0.08) !important; /* Rojo muy tenue */
+    border-left: 5px solid #bb0000 !important; /* Opcional: una barra roja lateral para resaltar */
+}
+
+/* Para asegurar que el hover no quite el color */
+[data-bloqueado="true"]:hover {
+    background-color: rgba(255, 0, 0, 0.12) !important;
+}

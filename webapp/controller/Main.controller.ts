@@ -19,6 +19,7 @@ export default class Main extends Controller {
     private _polylines: any[] = [];
     private _baseLocation = { lat: 19.54471, lng: -99.19305 };
     private _oDialog: any;
+    private _oExpedienteDialog: any;
 
     public onInit(): void {
         const oData = {
@@ -77,13 +78,12 @@ export default class Main extends Controller {
             mapId: "DEMO_MAP_ID"
         });
 
-        // Marcador de la Base
         const oBaseMarker = new window.google.maps.Marker({
             position: this._baseLocation,
             map: this._map,
             title: "Base Principal Tlalnepantla",
             icon: {
-                url: "http://maps.google.com/mapfiles/kml/pal2/icon5.png", // Icono Almacén
+                url: "http://maps.google.com/mapfiles/kml/pal2/icon5.png",
                 scaledSize: new window.google.maps.Size(40, 40)
             }
         });
@@ -115,7 +115,6 @@ export default class Main extends Controller {
     }
 
     public onAnalizar(): void {
-        // Limpiar rutas previas
         this._polylines.forEach(p => p.setMap(null));
         this._polylines = [];
 
@@ -142,35 +141,26 @@ export default class Main extends Controller {
         oToolPage.setSideExpanded(!oToolPage.getSideExpanded());
     }
 
-    /**
-     * Al hacer clic en un técnico de la lista lateral
-     */
     public onIntervencionPress(oEvent: any): void {
         const oBindingContext = oEvent.getSource().getBindingContext("localModel");
         const oData = oBindingContext.getObject();
 
         if (this._map && oData.pos) {
-            // Mueve el mapa a la posición del técnico
             this._map.panTo(oData.pos);
-            this._map.setZoom(16); // Zoom de detalle
+            this._map.setZoom(16);
 
             MessageToast.show("Enfocando a: " + oData.nombre);
             
-            // Opcional: Buscar el marcador correspondiente y animarlo
             const oMarker = this._markers.find(m => 
                 m.getPosition().lat().toFixed(4) === oData.pos.lat.toFixed(4)
             );
             if (oMarker) {
                 oMarker.setAnimation(window.google.maps.Animation.BOUNCE);
-                setTimeout(() => oMarker.setAnimation(null), 2100); // Rebota por 2 segundos
+                setTimeout(() => oMarker.setAnimation(null), 2100);
             }
         }
     }
 
-    /**
-     * Función adicional para regresar a la vista general (Base)
-     * Puedes llamarla desde el botón "Mapa" del menú lateral
-     */
     public onCenterBase(): void {
         if (this._map) {
             this._map.panTo(this._baseLocation);
@@ -178,23 +168,18 @@ export default class Main extends Controller {
         }
     }
 
-
-    
     public async onProgramar(): Promise<void> {
         if (!this._oDialog) {
-            // Importaciones dinámicas para mantener el tipado
             const Label = (await import("sap/m/Label")).default;
             const Input = (await import("sap/m/Input")).default;
             const VBox = (await import("sap/m/VBox")).default;
             const Button = (await import("sap/m/Button")).default;
             const Dialog = (await import("sap/m/Dialog")).default;
 
-            // Creamos los labels sin la propiedad 'class' en el constructor
             const oLabelNombre = new Label({ text: "Nombre del Cliente/Técnico" });
             const oLabelLat = new Label({ text: "Latitud" });
             const oLabelLng = new Label({ text: "Longitud" });
 
-            // Añadimos el margen usando el método oficial
             oLabelLat.addStyleClass("sapUiSmallMarginTop");
             oLabelLng.addStyleClass("sapUiSmallMarginTop");
 
@@ -232,13 +217,7 @@ export default class Main extends Controller {
         this._oDialog.open();
     }
 
-    /**
-     * Guarda los datos del formulario al modelo y actualiza el mapa
-     */
     private _saveNewIntervencion(): void {
-        const oInputNombre = sap.ui.getCore().byId("inputNombre") as Input;
-        const oInputLat = sap.ui.getCore().byId("inputLat") as Input;
-        const oInputLng = sap.ui.getCore().byId("inputLng") as Input;
         const sNombre = (sap.ui.getCore().byId("inputNombre") as any).getValue();
         const fLat = parseFloat((sap.ui.getCore().byId("inputLat") as any).getValue());
         const fLng = parseFloat((sap.ui.getCore().byId("inputLng") as any).getValue());
@@ -259,16 +238,14 @@ export default class Main extends Controller {
             pos: { lat: fLat, lng: fLng }
         };
 
-        // Actualizar Modelo
         aIntervenciones.push(oNewItem);
         oModel.setProperty("/intervenciones", aIntervenciones);
 
-        // Actualizar Mapa: Creamos el nuevo marcador
         const marker = new window.google.maps.Marker({
             position: oNewItem.pos,
             map: this._map,
             title: oNewItem.nombre,
-            icon: "http://googleusercontent.com/maps.google.com/5", // Icono azul estándar
+            icon: "http://googleusercontent.com/maps.google.com/5",
             animation: window.google.maps.Animation.DROP
         });
 
@@ -279,83 +256,146 @@ export default class Main extends Controller {
     }
 
     public onProgramarMensual(): void {
-    const oRouter = (this.getOwnerComponent() as any).getRouter();
-    oRouter.navTo("RoutePlanMonth");
-}
+        const oRouter = (this.getOwnerComponent() as any).getRouter();
+        oRouter.navTo("RoutePlanMonth");
+    }
 
-public onStrategicPlanningNav(): void {
-    const oRouter = (this.getOwnerComponent() as any).getRouter();
-    oRouter.navTo("RouteStrategicPlanning");
-}
+    public onStrategicPlanningNav(): void {
+        const oRouter = (this.getOwnerComponent() as any).getRouter();
+        oRouter.navTo("RouteStrategicPlanning");
+    }
+
     public onOrganizar(): void { MessageToast.show("Abriendo módulo de Organización..."); }
     public onSeguir(): void { MessageToast.show("Modo Seguimiento activado"); }
 
+    public testODataConnection(): void {
+        const oComponent = this.getOwnerComponent();
+        const oModel = oComponent?.getModel("db") as any;
 
+        if (!oModel || typeof oModel.read !== "function") {
+            console.error("El modelo 'db' no es un ODataModel válido.");
+            return;
+        }
 
-// ... dentro de tu controlador
+        const sMailFilter = "ldelacruz@melco.com.mx|032026";
+        const aFilters = [
+            new Filter("Mail", FilterOperator.EQ, sMailFilter)
+        ];
+        
+        BusyIndicator.show(0);
 
-public testODataConnection(): void {
-    const oComponent = this.getOwnerComponent();
-    const oModel = oComponent?.getModel("db") as any;
-
-    if (!oModel || typeof oModel.read !== "function") {
-        console.error("El modelo 'db' no es un ODataModel válido.");
-        return;
+        oModel.read("/HeaderRouteSet", {
+            filters: aFilters,
+            urlParameters: {
+                "$expand": "ServicesRouteSet,MechanicRouteSet"
+            },
+            success: (oData: any) => {
+                BusyIndicator.hide();
+                if (oData && oData.results && oData.results.length > 0) {
+                    const oHeader = oData.results[0];
+                    MessageBox.success("Datos cargados. Revisa la consola.");
+                } else {
+                    MessageToast.show("Sin resultados en SAP.");
+                }
+            },
+            error: (oError: any) => {
+                BusyIndicator.hide();
+                MessageBox.error("Fallo en SAP: " + (oError.message || "Error desconocido"));
+            }
+        });
     }
 
-    // 1. Definición del filtro para evitar el error 501
-    const sMailFilter = "ldelacruz@melco.com.mx|032026";
-    const aFilters = [
-        new Filter("Mail", FilterOperator.EQ, sMailFilter)
-    ];
+    // --- MÉTODOS PARA EXPEDIENTE (ACCIONADOS DESDE SIDE NAV) ---
 
-    // 2. Log de la URI base
-    console.log(">>> URI Base del Servicio:", oModel.sServiceUrl);
-    
-    BusyIndicator.show(0);
+    public async onOpenExpediente(): Promise<void> {
+        if (!this._oExpedienteDialog) {
+            const Dialog = (await import("sap/m/Dialog")).default;
+            const VBox = (await import("sap/m/VBox")).default;
+            const Label = (await import("sap/m/Label")).default;
+            const Input = (await import("sap/m/Input")).default;
+            const Button = (await import("sap/m/Button")).default;
+            const Table = (await import("sap/m/Table")).default;
+            const Column = (await import("sap/m/Column")).default;
+            const Text = (await import("sap/m/Text")).default;
 
-    oModel.read("/HeaderRouteSet", {
-        filters: aFilters,
-        urlParameters: {
-            "$expand": "ServicesRouteSet,MechanicRouteSet"
-        },
-        success: (oData: any) => {
-            BusyIndicator.hide();
-            
-            // LOG DE LA URI REAL (Solo visible si el servidor responde)
-            console.log(">>> URL de la petición enviada a SAP: ", oModel.sServiceUrl + "/HeaderRouteSet?$filter=Mail eq '" + sMailFilter + "'&$expand=...");
+            const oLabelRFC = new Label({ text: "RFC" });
+            const oLabelNombre = new Label({ text: "Nombre de Cliente" });
+            // Corrección de error de TS: addStyleClass se usa fuera del constructor
+            oLabelNombre.addStyleClass("sapUiSmallMarginTop");
 
-            // 3. Procesamiento de los resultados del EntitySet
-            if (oData && oData.results && oData.results.length > 0) {
-                const oHeader = oData.results[0]; // Tomamos el primer resultado del filtro
-                
-                console.log("✅ RESULTADOS ODATA RECIBIDOS:");
-                console.log("Header ID:", oHeader.Id);
-                console.log("Mecánicos encontrados:", oHeader.MechanicRouteSet?.results?.length || 0);
-                console.log("Servicios encontrados:", oHeader.ServicesRouteSet?.results?.length || 0);
-                
-                // Muestra la tabla de servicios en consola para validar campos
-                console.table(oHeader.ServicesRouteSet.results);
-
-                MessageBox.success("Datos cargados. Revisa la consola para ver la estructura de MechanicRouteSet y ServicesRouteSet.");
-            } else {
-                console.warn("⚠️ No se encontraron datos para el filtro proporcionado.");
-                MessageToast.show("Sin resultados en SAP para este usuario/periodo.");
-            }
-        },
-        error: (oError: any) => {
-            BusyIndicator.hide();
-            
-            // Log de la URI que falló
-            if (oError.requestUri) {
-                console.error("❌ URI FALLIDA:", oError.requestUri);
-            }
-            
-            console.error("❌ ERROR DETALLADO:", oError);
-            MessageBox.error("Fallo en SAP: " + (oError.message || "Error desconocido"));
+            this._oExpedienteDialog = new Dialog({
+                title: "Expediente de Cliente",
+                contentWidth: "650px",
+                content: [
+                    new VBox({
+                        items: [
+                            oLabelRFC,
+                            new Input("inputRFC", { placeholder: "XAXX010101000" }),
+                            oLabelNombre,
+                            new Input("inputClienteExp", { placeholder: "Nombre del titular..." }),
+                            new Button({
+                                text: "Buscar",
+                                icon: "sap-icon://search",
+                                type: "Emphasized",
+                                press: () => this._onFakeSearch()
+                            }).addStyleClass("sapUiSmallMarginTop"),
+                            new Table("tableExpediente", {
+                                visible: false,
+                                columns: [
+                                    new Column({ header: new Text({ text: "Contrato" }) }),
+                                    new Column({ header: new Text({ text: "Equipos" }) }),
+                                    new Column({ header: new Text({ text: "O. Planeadas" }) }),
+                                    new Column({ header: new Text({ text: "O. Ejecución" }) })
+                                ]
+                            }).addStyleClass("sapUiSmallMarginTop")
+                        ]
+                    }).addStyleClass("sapUiSmallMargin")
+                ],
+                endButton: new Button({
+                    text: "Cerrar",
+                    press: () => this._oExpedienteDialog.close()
+                })
+            });
+            this.getView()?.addDependent(this._oExpedienteDialog);
         }
-    });
-}
+        this._oExpedienteDialog.open();
+    }
+
+    private _onFakeSearch(): void {
+        const oTable = sap.ui.getCore().byId("tableExpediente") as any;
+        const aData = [
+            { contrato: "MTTO-2026-X8", equipos: "12 Unidades", planeadas: 4, ejecucion: 2 },
+            { contrato: "SERV-REGL-01", equipos: "05 Unidades", planeadas: 1, ejecucion: 0 }
+        ];
+        oTable.setModel(new JSONModel(aData));
+        oTable.bindItems({
+            path: "/",
+            template: new (sap.m as any).ColumnListItem({
+                cells: [
+                    new (sap.m as any).Text({ text: "{contrato}" }),
+                    new (sap.m as any).Text({ text: "{equipos}" }),
+                    new (sap.m as any).Text({ text: "{planeadas}" }),
+                    new (sap.m as any).Text({ text: "{ejecucion}" })
+                ]
+            })
+        });
+        oTable.setVisible(true);
+    }
+
+    // --- NUEVOS MÉTODOS DE NAVEGACIÓN ---
+
+    public onShowSupervisores(): void {
+        MessageToast.show("Total de Supervisores: 5");
+    }
+
+    public onShowMecanicos(): void {
+        MessageToast.show("Total de Mecánicos activos: 24");
+    }
+
+    public onShowEquipos(): void {
+        MessageToast.show("Total de Equipos en sistema: 150");
+    }
+
 
 
 }

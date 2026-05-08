@@ -31,15 +31,20 @@
         </tnt:header>
 
         <tnt:sideContent>
-            <tnt:SideNavigation>
-                <tnt:item>
-                    <tnt:NavigationList>
-                        <tnt:NavigationListItem text="Mapa" icon="sap-icon://map" />
-                        <tnt:NavigationListItem text="Intervenciones" icon="sap-icon://list" />
-                    </tnt:NavigationList>
-                </tnt:item>
-            </tnt:SideNavigation>
-        </tnt:sideContent>
+    <tnt:SideNavigation>
+        <tnt:item>
+            <tnt:NavigationList>
+                <tnt:NavigationListItem text="Mapa" icon="sap-icon://map" />
+                <tnt:NavigationListItem text="Intervenciones" icon="sap-icon://list" />
+                <tnt:NavigationListItem text="Expediente" icon="sap-icon://customer-and-contacts" select=".onOpenExpediente" />
+                
+                <tnt:NavigationListItem text="Supervisores" icon="sap-icon://employee-lookup" select=".onShowSupervisores" />
+                <tnt:NavigationListItem text="Mecánicos" icon="sap-icon://wrench" select=".onShowMecanicos" />
+                <tnt:NavigationListItem text="Equipos" icon="sap-icon://machine" select=".onShowEquipos" />
+            </tnt:NavigationList>
+        </tnt:item>
+    </tnt:SideNavigation>
+</tnt:sideContent>
 
         <tnt:mainContents>
             <VBox fitContainer="true" class="sapUiSmallMargin">
@@ -71,16 +76,16 @@
                             <Button icon="sap-icon://sort" type="Transparent" />
                         </Toolbar>
                         <List items="{localModel>/intervenciones}" noDataText="Sin actividad">
-    <CustomListItem type="Active" press=".onIntervencionPress">
-        <HBox class="sapUiSmallMargin" justifyContent="SpaceBetween" alignItems="Center">
-            <VBox>
-                <Text text="{localModel>nombre}" fontWeight="Bold" />
-                <Text text="{localModel>unidad}" color="DimGray" />
-            </VBox>
-            <ObjectStatus text="{localModel>estado}" state="{localModel>state}" inverted="true" />
-        </HBox>
-    </CustomListItem>
-</List>
+                            <CustomListItem type="Active" press=".onIntervencionPress">
+                                <HBox class="sapUiSmallMargin" justifyContent="SpaceBetween" alignItems="Center">
+                                    <VBox>
+                                        <Text text="{localModel>nombre}" fontWeight="Bold" />
+                                        <Text text="{localModel>unidad}" color="DimGray" />
+                                    </VBox>
+                                    <ObjectStatus text="{localModel>estado}" state="{localModel>state}" inverted="true" />
+                                </HBox>
+                            </CustomListItem>
+                        </List>
                     </VBox>
                 </HBox>
             </VBox>

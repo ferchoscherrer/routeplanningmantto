@@ -13,6 +13,7 @@ import CustomListItem from "sap/m/CustomListItem";
 import BusyDialog from "sap/m/BusyDialog";
 import Button from "sap/m/Button";
 import Item from "sap/ui/core/Item";
+import ComboBox from "sap/m/ComboBox";
 
 /**
  * @namespace routeplanningmantto.controller
@@ -32,92 +33,92 @@ export default class RoutePlanMonth extends Controller {
     }
 
     private _setupFechaComboBox(): void {
-    const oComboBox = this.byId("comboFechaFiltro") as any;
-    if (!oComboBox) return;
+        const oComboBox = this.byId("comboFechaFiltro") as any;
+        if (!oComboBox) return;
 
-    const aMeses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-    
-    // Obtenemos fecha actual (Mayo 2026 en este contexto)
-    const oFechaActual = new Date();
-    const iAnioActual = oFechaActual.getFullYear();
-    const iMesActual = oFechaActual.getMonth(); 
+        const aMeses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        
+        // Obtenemos fecha actual (Mayo 2026 en este contexto)
+        const oFechaActual = new Date();
+        const iAnioActual = oFechaActual.getFullYear();
+        const iMesActual = oFechaActual.getMonth(); 
 
-    oComboBox.destroyItems();
+        oComboBox.destroyItems();
 
-    for (let i = 0; i < aMeses.length; i++) {
-        const sMesNum = (i + 1).toString().padStart(2, '0');
-        const sKey = `${iAnioActual}${sMesNum}`;
+        for (let i = 0; i < aMeses.length; i++) {
+            const sMesNum = (i + 1).toString().padStart(2, '0');
+            const sKey = `${iAnioActual}${sMesNum}`;
 
-        // USAMOS LA CLASE ITEM IMPORTADA DIRECTAMENTE
-        oComboBox.addItem(new Item({
-            key: sKey,
-            text: `${aMeses[i]} ${iAnioActual}`
-        }));
+            // USAMOS LA CLASE ITEM IMPORTADA DIRECTAMENTE
+            oComboBox.addItem(new Item({
+                key: sKey,
+                text: `${aMeses[i]} ${iAnioActual}`
+            }));
+        }
+
+        // Seleccionar el mes actual por defecto
+        const sDefaultKey = `${iAnioActual}${(iMesActual + 1).toString().padStart(2, '0')}`;
+        oComboBox.setSelectedKey(sDefaultKey);
     }
 
-    // Seleccionar el mes actual por defecto
-    const sDefaultKey = `${iAnioActual}${(iMesActual + 1).toString().padStart(2, '0')}`;
-    oComboBox.setSelectedKey(sDefaultKey);
-}
-
-public onFechaChange(oEvent: any): void {
-    const sSelectedKey = oEvent.getSource().getSelectedKey();
-    
-    if (sSelectedKey) {
-        // Llamamos a la carga con el nuevo periodo (YYYYMM)
-        this._loadOData(sSelectedKey);
+    public onFechaChange(oEvent: any): void {
+        const sSelectedKey = oEvent.getSource().getSelectedKey();
+        
+        if (sSelectedKey) {
+            // Llamamos a la carga con el nuevo periodo (YYYYMM)
+            this._loadOData(sSelectedKey);
+        }
     }
-}
 
     private _loadOData(sPeriodo?: string): void {
-    const oComponent = this.getOwnerComponent();
-    const oDataModel = oComponent?.getModel("db") as any;
-    const oComboBox = this.byId("comboFechaFiltro") as any;
+        const oComponent = this.getOwnerComponent();
+        const oDataModel = oComponent?.getModel("db") as any;
+        const oComboBox = this.byId("comboFechaFiltro") as any;
 
-    if (!oDataModel) return;
+        if (!oDataModel) return;
 
-    // Si no recibimos periodo, lo tomamos del ComboBox (que ya tiene el default del mes actual)
-    const sFechaKey = sPeriodo || oComboBox.getSelectedKey(); 
+        // Si no recibimos periodo, lo tomamos del ComboBox (que ya tiene el default del mes actual)
+        const sFechaKey = sPeriodo || oComboBox.getSelectedKey(); 
 
-    // Construimos la llave dinámica: Correo | YYYYMM
-    const sUserMail = "ldelacruz@melco.com.mx"; 
-    const sDynamicKey = `${sUserMail}|${sFechaKey}`; 
+        // Construimos la llave dinámica: Correo | YYYYMM
+        const sUserMail = "ldelacruz@melco.com.mx"; 
+        const sDynamicKey = `${sUserMail}|${sFechaKey}`; 
 
-    console.log("Cargando datos para la llave:", sDynamicKey);
+        console.log("Cargando datos para la llave:", sDynamicKey);
 
-    const oFilter = new Filter("Mail", FilterOperator.EQ, sDynamicKey);
+        const oFilter = new Filter("Mail", FilterOperator.EQ, sDynamicKey);
 
-    // Mostramos un indicador de carga global
-    BusyIndicator.show(0);
+        // Mostramos un indicador de carga global
+        BusyIndicator.show(0);
 
-    oDataModel.read("/HeaderRouteSet", {
-        filters: [oFilter],
-        urlParameters: { 
-            "$expand": "ServicesRouteSet,MechanicRouteSet" 
-        },
-        success: (oData: any) => {
-            BusyIndicator.hide();
-            const aResults = oData.results ? oData.results : [];
-            
-            if (aResults.length > 0) {
-                const oPrincipalData = aResults[0];
-                const oDbModel = new JSONModel(oPrincipalData);
-                this.getView()?.setModel(oDbModel, "db");
+        oDataModel.read("/HeaderRouteSet", {
+            filters: [oFilter],
+            urlParameters: { 
+                "$expand": "ServicesRouteSet,MechanicRouteSet" 
+            },
+            success: (oData: any) => {
+                BusyIndicator.hide();
+                const aResults = oData.results ? oData.results : [];
                 
-                this._processPlanningData(oDbModel);
-            } else {
-                // Si no hay datos, limpiamos el modelo actual para que no se vea info vieja
-                this.getView()?.setModel(new JSONModel({}), "db");
-                MessageToast.show("No se encontraron datos para el periodo seleccionado.");
+                if (aResults.length > 0) {
+                    const oPrincipalData = aResults[0];
+                    const oDbModel = new JSONModel(oPrincipalData);
+                    this.getView()?.setModel(oDbModel, "db");
+                    
+                    this._processPlanningData(oDbModel);
+                } else {
+                    // Si no hay datos, limpiamos el modelo actual para que no se vea info vieja
+                    this.getView()?.setModel(new JSONModel({}), "db");
+                    MessageToast.show("No se encontraron datos para el periodo seleccionado.");
+                }
+            },
+            error: (oError: any) => {
+                BusyIndicator.hide();
+                console.error("Error técnico:", oError);
+                MessageBox.error("Error al cargar los datos del periodo.");
             }
-        },
-        error: (oError: any) => {
-            BusyIndicator.hide();
-            console.error("Error técnico:", oError);
-            MessageBox.error("Error al cargar los datos del periodo.");
-        }
-    });
-}
+        });
+    }
 
     private _processPlanningData(oModel: JSONModel): void {
         const oData = oModel.getData();
@@ -127,16 +128,46 @@ public onFechaChange(oEvent: any): void {
         aServicios.forEach((s: any) => {
             s.Cliente = s.Nombre || s.Cliente;
 
-            // --- CORRECCIÓN AQUÍ: Procesar UltimaOrden para que la vista la reconozca ---
+            // --- PROCESAMIENTO DE STATUS (NUEVO) ---
+            if (s.Status && s.Status.includes("|")) {
+                const aParts = s.Status.split("|").map((p: string) => p.trim());
+                
+                s.StatusText = aParts[0] || ""; 
+                s.StatusSub1 = aParts[1] || ""; 
+                s.StatusSub2 = aParts[2] || ""; 
+                s.StatusSub3 = aParts[3] || "";
+                
+                // Tomamos el valor del índice 4
+                let sRawSub4 = aParts[4] || "";
+                
+                // VALIDACIÓN CRÍTICA: 
+                // Si lo que llega es solo un guion "-" o está vacío, lo tratamos como vacío real.
+                if (sRawSub4 === "-" || sRawSub4 === "") {
+                    s.StatusSub4 = "";
+                } else {
+                    s.StatusSub4 = sRawSub4;
+                }
+            } else {
+                s.StatusText = s.Status || "";
+                s.StatusSub1 = s.StatusSub2 = s.StatusSub3 = s.StatusSub4 = "";
+            }
+
+            // --- LÓGICA DE BLOQUEO POR REGLAS DE NEGOCIO ---
+            const bExpirado = this.isExpired(s.VigenciaFin) === true;
+            const bBloqueadoStatus = s.StatusSub4 !== "";
+            const bTieneOrden = !!s.Orden || !!s.UltimaOrden;
+
+            // Bloqueo preventivo: Solo entra si cumple condiciones
+            if (bExpirado || bBloqueadoStatus || bTieneOrden) {
+                s.Selected = false;
+            }
+
+            // --- LÓGICA DE ULTIMA ORDEN ---
             if (s.UltimaOrden && s.UltimaOrden.includes("|")) {
                 const aOrdenes = s.UltimaOrden.split("|");
-                // Sobreescribimos la propiedad con el último valor
                 s.UltimaOrden = aOrdenes[aOrdenes.length - 1].trim();
             }
             
-            // También actualizamos 'Orden' para la lógica de los Checkbox y estados
-            //s.Orden = s.UltimaOrden; 
-
             if (s.FechaProgramada) {
                 const [day, month, year] = s.FechaProgramada.split('/');
                 s.GroupKey = `${year}${month}${day} | RUTA-${s.AsignadoA || 'POR_PROGRAMAR'}`;
@@ -182,7 +213,7 @@ public onFechaChange(oEvent: any): void {
     }
 
     // Factoría de cabeceras para la lista agrupada (Copiada de StrategicPlanning)
-   public getGroupHeader(oGroup: any): GroupHeaderListItem {
+    public getGroupHeader(oGroup: any): GroupHeaderListItem {
         const aParts = oGroup.key.split(" | ");
         const sFechaRaw = aParts[0];
         const sFormattedDate = `${sFechaRaw.substring(6, 8)}/${sFechaRaw.substring(4, 6)}/${sFechaRaw.substring(0, 4)}`;
@@ -198,124 +229,130 @@ public onFechaChange(oEvent: any): void {
         }
     }
 
-public async onGenerarOrdenes(): Promise<void> {
-    const oModel = this.getView()?.getModel("db") as JSONModel;
-    const aTodosLosServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
-    const aServiciosSeleccionados = aTodosLosServicios.filter((s: any) => s.Selected === true);
+    public async onGenerarOrdenes(): Promise<void> {
+        const oModel = this.getView()?.getModel("db") as JSONModel;
+        const aTodosLosServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
+        
+        // FILTRO DE SEGURIDAD ESTRICTO: Solo seleccionados que NO estén expirados y NO tengan bloqueo manual Sub4
+        const aServiciosSeleccionados = aTodosLosServicios.filter((s: any) => 
+            s.Selected === true && 
+            this.isExpired(s.VigenciaFin) !== true &&
+            (!s.StatusSub4 || s.StatusSub4 === "")
+        );
 
-    if (aServiciosSeleccionados.length === 0) return;
+        if (aServiciosSeleccionados.length === 0) return;
 
-    // VALIDACIÓN: ¿Hay equipos que ya tienen orden?
-    const bHayOrdenesPrevias = aServiciosSeleccionados.some((s: any) => !!s.UltimaOrden || !!s.Orden);
+        // VALIDACIÓN: ¿Hay equipos que ya tienen orden?
+        const bHayOrdenesPrevias = aServiciosSeleccionados.some((s: any) => !!s.UltimaOrden || !!s.Orden);
 
-    if (bHayOrdenesPrevias) {
-        MessageBox.confirm("Algunos equipos ya cuentan con una orden programada en este periodo. ¿Desea generar una nueva orden de todos modos?", {
-            title: "Confirmar Duplicidad",
-            actions: [MessageBox.Action.YES, MessageBox.Action.NO],
-            onClose: (oAction: any) => {
-                if (oAction === MessageBox.Action.YES) {
-                    this._executeBatchCreation(aServiciosSeleccionados);
-                } else {
-                    // Si dice que NO, desmarcamos los flags y refrescamos
-                    aTodosLosServicios.forEach((s: any) => s.Selected = false);
-                    const oBtn = this.byId("btnGenerarOrdenes") as Button;
-                    if (oBtn) oBtn.setEnabled(false);
+        if (bHayOrdenesPrevias) {
+            MessageBox.confirm("Algunos equipos ya cuentan con una orden programada en este periodo. ¿Desea generar una nueva orden de todos modos?", {
+                title: "Confirmar Duplicidad",
+                actions: [MessageBox.Action.YES, MessageBox.Action.NO],
+                onClose: (oAction: any) => {
+                    if (oAction === MessageBox.Action.YES) {
+                        this._executeBatchCreation(aServiciosSeleccionados);
+                    } else {
+                        // Si dice que NO, desmarcamos los flags y refrescamos
+                        aTodosLosServicios.forEach((s: any) => s.Selected = false);
+                        const oBtn = this.byId("btnGenerarOrdenes") as any;
+                        if (oBtn) oBtn.setEnabled(false);
+                        oModel.refresh(true);
+                    }
+                }
+            });
+        } else {
+            // Si no hay previas, ejecutamos directo
+            this._executeBatchCreation(aServiciosSeleccionados);
+        }
+    }
+
+    private async _executeBatchCreation(aServiciosSeleccionados: any[]): Promise<void> {
+        const oModel = this.getView()?.getModel("db") as JSONModel;
+        const aTodosLosServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
+        const aMecanicosStats = oModel.getProperty("/MecanicosStats") || []; 
+        const oList = this.byId("routeList") as any;
+
+        if (!this._oBusyDialog) {
+            this._oBusyDialog = new BusyDialog({
+                title: "Programando Órdenes",
+                text: "Iniciando comunicación con SAP..."
+            });
+        }
+        this._oBusyDialog.open();
+
+        const oDataModel = this.getOwnerComponent()?.getModel("db") as any;
+        const sFechaFija = "20260515";
+        let iContadorExito = 0; 
+
+        try {
+            for (let i = 0; i < aServiciosSeleccionados.length; i++) {
+                const oItem = aServiciosSeleccionados[i];
+                this._oBusyDialog.setText(`Procesando selección ${i + 1} de ${aServiciosSeleccionados.length}...\nEquipo: ${oItem.Equipo}`);
+
+                let sContratoLimpio = (oItem.Contrato || "").split("-")[0];
+
+                const oPayload = {
+                    "Equipo": oItem.Equipo,
+                    "FechaInicio": sFechaFija,
+                    "FechaFin": sFechaFija,
+                    "Mecanico": oItem.AsignadoA || "",
+                    "Supervisor": "SUP_ALBERTO",
+                    "Paquetes": oItem.Paquetes || "01",
+                    "Ruta": oItem.Ruta || "",
+                    "Contrato": sContratoLimpio.trim(),
+                    "PosContrato": oItem.Posicion || "",
+                    "Cobertura": "TOTAL",
+                    "NumVisita": oItem.CargaNum ? oItem.CargaNum.toString() : "1",
+                    "Cliente": oItem.Nombre || oItem.Cliente || "",
+                    "Status": "", "Mensaje": "", "Orden": "", "PuestoTrabajo": "TEC_ELEV"
+                };
+
+                const oVisualItem = oList.getItems().find((item: any) => {
+                    const oCtx = item.getBindingContext("db");
+                    return oCtx && oCtx.getProperty("Equipo") === oItem.Equipo;
+                });
+
+                if (oVisualItem) {
+                    oVisualItem.getDomRef()?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+
+                try {
+                    const oResponse: any = await this._createEntityPromise(oDataModel, "/PlanningItemsSet", oPayload);
+                    oItem.Orden = oResponse.Orden;
+                    oItem.Mensaje = oResponse.Mensaje;
+
+                    if (oResponse.Orden) {
+                        iContadorExito++;
+                        const sNominaServicio = (oItem.Mecanico || "").split("|")[0].trim().replace(/^0+/, '');
+                        const oMecanico = aMecanicosStats.find((m: any) => m.Id.toString().replace(/^0+/, '') === sNominaServicio);
+
+                        if (oMecanico) {
+                            const aTodosDelMec = aTodosLosServicios.filter((s: any) => (s.Mecanico || "").split("|")[0].trim().replace(/^0+/, '') === oMecanico.Id.replace(/^0+/, ''));
+                            const aServiciosConOrden = aTodosDelMec.filter((s: any) => !!s.Orden);
+                            if (aTodosDelMec.length > 0) {
+                                oMecanico.PorcentajeCarga = Math.round((aServiciosConOrden.length / aTodosDelMec.length) * 100);
+                            }
+                        }
+                    }
+                    this._oBusyDialog.setText(`Respuesta SAP para ${oItem.Equipo}:\nOrden: ${oResponse.Orden}\n${oResponse.Mensaje}`);
+                    oModel.refresh(true);
+                } catch (oError: any) {
+                    oItem.Mensaje = "Error de comunicación";
                     oModel.refresh(true);
                 }
             }
-        });
-    } else {
-        // Si no hay previas, ejecutamos directo
-        this._executeBatchCreation(aServiciosSeleccionados);
-    }
-}
-
-private async _executeBatchCreation(aServiciosSeleccionados: any[]): Promise<void> {
-    const oModel = this.getView()?.getModel("db") as JSONModel;
-    const aTodosLosServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
-    const aMecanicosStats = oModel.getProperty("/MecanicosStats") || []; 
-    const oList = this.byId("routeList") as any;
-
-    if (!this._oBusyDialog) {
-        this._oBusyDialog = new BusyDialog({
-            title: "Programando Órdenes",
-            text: "Iniciando comunicación con SAP..."
-        });
-    }
-    this._oBusyDialog.open();
-
-    const oDataModel = this.getOwnerComponent()?.getModel("db") as any;
-    const sFechaFija = "20260515";
-    let iContadorExito = 0; 
-
-    try {
-        for (let i = 0; i < aServiciosSeleccionados.length; i++) {
-            const oItem = aServiciosSeleccionados[i];
-            this._oBusyDialog.setText(`Procesando selección ${i + 1} de ${aServiciosSeleccionados.length}...\nEquipo: ${oItem.Equipo}`);
-
-            let sContratoLimpio = (oItem.Contrato || "").split("-")[0];
-
-            const oPayload = {
-                "Equipo": oItem.Equipo,
-                "FechaInicio": sFechaFija,
-                "FechaFin": sFechaFija,
-                "Mecanico": oItem.AsignadoA || "",
-                "Supervisor": "SUP_ALBERTO",
-                "Paquetes": oItem.Paquetes || "01",
-                "Ruta": oItem.Ruta || "",
-                "Contrato": sContratoLimpio.trim(),
-                "PosContrato": oItem.Posicion || "",
-                "Cobertura": "TOTAL",
-                "NumVisita": oItem.CargaNum ? oItem.CargaNum.toString() : "1",
-                "Cliente": oItem.Nombre || oItem.Cliente || "",
-                "Status": "", "Mensaje": "", "Orden": "", "PuestoTrabajo": "TEC_ELEV"
-            };
-
-            const oVisualItem = oList.getItems().find((item: any) => {
-                const oCtx = item.getBindingContext("db");
-                return oCtx && oCtx.getProperty("Equipo") === oItem.Equipo;
-            });
-
-            if (oVisualItem) {
-                oVisualItem.getDomRef()?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-
-            try {
-                const oResponse: any = await this._createEntityPromise(oDataModel, "/PlanningItemsSet", oPayload);
-                oItem.Orden = oResponse.Orden;
-                oItem.Mensaje = oResponse.Mensaje;
-
-                if (oResponse.Orden) {
-                    iContadorExito++;
-                    const sNominaServicio = (oItem.Mecanico || "").split("|")[0].trim().replace(/^0+/, '');
-                    const oMecanico = aMecanicosStats.find((m: any) => m.Id.toString().replace(/^0+/, '') === sNominaServicio);
-
-                    if (oMecanico) {
-                        const aTodosDelMec = aTodosLosServicios.filter((s: any) => (s.Mecanico || "").split("|")[0].trim().replace(/^0+/, '') === oMecanico.Id.replace(/^0+/, ''));
-                        const aServiciosConOrden = aTodosDelMec.filter((s: any) => !!s.Orden);
-                        if (aTodosDelMec.length > 0) {
-                            oMecanico.PorcentajeCarga = Math.round((aServiciosConOrden.length / aTodosDelMec.length) * 100);
-                        }
-                    }
-                }
-                this._oBusyDialog.setText(`Respuesta SAP para ${oItem.Equipo}:\nOrden: ${oResponse.Orden}\n${oResponse.Mensaje}`);
-                oModel.refresh(true);
-            } catch (oError: any) {
-                oItem.Mensaje = "Error de comunicación";
-                oModel.refresh(true);
-            }
+            this._oBusyDialog.close();
+            aTodosLosServicios.forEach((s: any) => s.Selected = false);
+            const oBtn = this.byId("btnGenerarOrdenes") as any;
+            if(oBtn) oBtn.setEnabled(false);
+            oModel.refresh(true);
+            MessageBox.success(`Proceso finalizado.\nSeleccionados: ${aServiciosSeleccionados.length}\nÓrdenes generadas: ${iContadorExito}`);
+        } catch (err) {
+            if (this._oBusyDialog) this._oBusyDialog.close();
+            MessageBox.error("Error crítico en el proceso masivo.");
         }
-        this._oBusyDialog.close();
-        aTodosLosServicios.forEach((s: any) => s.Selected = false);
-        const oBtn = this.byId("btnGenerarOrdenes") as any;
-        if(oBtn) oBtn.setEnabled(false);
-        oModel.refresh(true);
-        MessageBox.success(`Proceso finalizado.\nSeleccionados: ${aServiciosSeleccionados.length}\nÓrdenes generadas: ${iContadorExito}`);
-    } catch (err) {
-        if (this._oBusyDialog) this._oBusyDialog.close();
-        MessageBox.error("Error crítico en el proceso masivo.");
     }
-}
 
     private _createEntityPromise(oDataModel: any, sEntitySet: string, oPayload: any): Promise<any> {
         return new Promise((resolve, reject) => {
@@ -327,53 +364,136 @@ private async _executeBatchCreation(aServiciosSeleccionados: any[]): Promise<voi
     }
 
 
-   public onSelectionChange(): void {
-    const oModel = this.getView()?.getModel("db") as JSONModel;
-    const aServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
-    const oBtn = this.byId("btnGenerarOrdenes") as Button;
+    public onSelectionChange(): void {
+        const oModel = this.getView()?.getModel("db") as JSONModel;
+        const aServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
+        const oBtn = this.byId("btnGenerarOrdenes") as Button;
 
-    // Verificar si hay alguno marcado en el modelo
-    const bAnySelected = aServicios.some((s: any) => s.Selected === true);
-    oBtn.setEnabled(bAnySelected);
+        // Verificar si hay alguno marcado en el modelo
+        const bAnySelected = aServicios.some((s: any) => s.Selected === true);
+        oBtn.setEnabled(bAnySelected);
+    }
+
+    public onSelectAll(): void {
+        const oModel = this.getView()?.getModel("db") as JSONModel;
+        const aServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
+        const oBtnSelect = this.byId("btnSelectAll") as any;
+        
+        // 1. Determinar si actualmente todos los elegibles están seleccionados
+        // (Elegibles = no tienen orden, no están vencidos y no tienen bloqueo por StatusSub4)
+        const aElegibles = aServicios.filter((s: any) => {
+            const bExpirado = this.isExpired(s.VigenciaFin);
+            const bBloqueadoStatus = s.StatusSub4 && s.StatusSub4 !== "";
+            return !s.Orden && bExpirado !== true && !bBloqueadoStatus; 
+        });
+
+        const bTodosElegiblesMarcados = aElegibles.length > 0 && aElegibles.every((s: any) => s.Selected === true);
+        const bNuevoValor = !bTodosElegiblesMarcados;
+
+        // 2. Aplicar la selección solo a los que pasan la validación
+        aServicios.forEach((s: any) => {
+            const bExpirado = this.isExpired(s.VigenciaFin);
+            const bBloqueadoStatus = s.StatusSub4 && s.StatusSub4 !== "";
+            
+            // REGLA: Solo seleccionar si:
+            // - NO tiene orden previa
+            // - NO está vencido
+            // - NO tiene bloqueo manual (StatusSub4)
+            if (!s.Orden && bExpirado !== true && !bBloqueadoStatus) {
+                s.Selected = bNuevoValor;
+            } else {
+                s.Selected = false;
+            }
+        });
+
+        // 3. Actualizar UI
+        oBtnSelect.setIcon(bNuevoValor ? "sap-icon://multiselect-none" : "sap-icon://multiselect-all");
+        
+        oModel.refresh(true);
+        this.onSelectionChange();
+
+        if (bNuevoValor && aElegibles.length === 0) {
+            MessageToast.show("No hay equipos vigentes disponibles para seleccionar.");
+        }
+    }
+
+    public formatPaquetes(sPaquetes: string): string {
+        if (!sPaquetes) return "Ciclos Programados: No definidos";
+
+        const oMeses: any = {
+            "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
+            "05": "May", "06": "Jun", "07": "Jul", "08": "Ago",
+            "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dic"
+        };
+
+        const aPartes = sPaquetes.split("|");
+        const aTraducidos = aPartes.map(sId => oMeses[sId.trim()] || sId);
+        const sMesesTexto = aTraducidos.join(", ");
+
+        return "Ciclos Programados: (" + sMesesTexto + ")";
+    }
+
+
+    public formatVigencia(sVigencia: string): string {
+        if (!sVigencia || sVigencia.length < 6) {
+            return sVigencia;
+        }
+
+        const sYear = sVigencia.substring(0, 4);
+        const sMonth = sVigencia.substring(4, 6);
+        
+        const aMeses: any = {
+            "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
+            "05": "May", "06": "Jun", "07": "Jul", "08": "Ago",
+            "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dic"
+        };
+
+        const sMesNombre = aMeses[sMonth] || sMonth;
+        return `${sMesNombre} ${sYear}`;
+    }
+
+    public isExpired(sVigenciaFin: string): any {
+        const oCombo = this.byId("comboFechaFiltro") as any;
+        const sSelectedKey = oCombo.getSelectedKey(); 
+        
+        if (!sVigenciaFin || sVigenciaFin === "00000000" || sVigenciaFin.startsWith("00")) {
+            return "NULL"; 
+        }
+
+        if (!sSelectedKey) {
+            return false;
+        }
+
+        const sVigYearMonth = sVigenciaFin.substring(0, 6);
+        const iVigenciaNum = parseInt(sVigYearMonth);
+
+        let iSelectedNum: number;
+        
+        if (sSelectedKey.length === 6) {
+            iSelectedNum = parseInt(sSelectedKey);
+        } else {
+            const sMonth = sSelectedKey.substring(0, 2);
+            const sYear = sSelectedKey.substring(2, 6);
+            iSelectedNum = parseInt(sYear + sMonth);
+        }
+
+        const bIsExpired = iVigenciaNum < iSelectedNum;
+        return bIsExpired;
+    }
+
+
+    public formatNiveles(sNiveles: string): string {
+        if (!sNiveles) {
+            return "Nd";
+        }
+
+        const iIndex = sNiveles.indexOf("=");
+
+        if (iIndex !== -1) {
+            const sResult = sNiveles.substring(iIndex + 1).trim();
+            return sResult !== "" ? sResult : "Nd";
+        }
+
+        return "Nd";
+    }
 }
-
-public onSelectAll(): void {
-    const oModel = this.getView()?.getModel("db") as JSONModel;
-    const aServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
-    const oBtnSelect = this.byId("btnSelectAll") as Button;
-    
-    // Marcamos todos independientemente de si tienen orden o no
-    const bAllSelected = aServicios.every((s: any) => s.Selected === true);
-    const bNewValue = !bAllSelected;
-
-    aServicios.forEach((s: any) => {
-        s.Selected = bNewValue;
-    });
-
-    oBtnSelect.setIcon(bNewValue ? "sap-icon://multiselect-none" : "sap-icon://multiselect-all");
-    
-    oModel.refresh(true);
-    this.onSelectionChange();
-}
-
-public formatPaquetes(sPaquetes: string): string {
-    if (!sPaquetes) return "Ciclos Programados: No definidos";
-
-    const oMeses: any = {
-        "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
-        "05": "May", "06": "Jun", "07": "Jul", "08": "Ago",
-        "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dic"
-    };
-
-    // Separar los códigos (ej: "01|02"), traducirlos y unirlos por coma
-    const aPartes = sPaquetes.split("|");
-    const aTraducidos = aPartes.map(sId => oMeses[sId.trim()] || sId);
-    const sMesesTexto = aTraducidos.join(", ");
-
-    // Retorna el subtítulo con el formato solicitado
-    return "Ciclos Programados: (" + sMesesTexto + ")";
-}
-
-
-}
-    

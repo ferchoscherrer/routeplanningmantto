@@ -9,6 +9,7 @@
     <Page title="Programación Mensual de Servicios" showNavButton="true" navButtonPress=".onNavBack">
         <content>
             <VBox width="100%" height="100%" renderType="Bare">
+                <!-- METRICAS SUPERIORES -->
                 <HBox class="sapUiSmallMargin" wrap="Wrap" justifyContent="Start" style="flex-shrink: 0;">
                     <VBox class="metricCardSmall">
                         <Text text="Equipos" class="metricLabel" />
@@ -19,112 +20,118 @@
                         <Title text="{db>/TotalKm} km" titleStyle="H2" class="metricValue" />
                     </VBox>
                     <VBox class="metricCardSmall">
-                        <Text text="Mecánicos" class="metricLabel" />
+                        <Text text="Mec." class="metricLabel" />
                         <Title text="{db>/TotalMecanicos}" titleStyle="H2" class="metricValue" />
                     </VBox>
                 </HBox>
 
                 <HBox width="100%" renderType="Bare" style="flex-grow: 1;">
+                    <!-- LISTADO DE RUTAS -->
                     <VBox width="60%" class="sapUiSmallMarginBegin sapUiSmallMarginEnd" style="height: 100%;">
                         <Toolbar style="Clear">
                             <Title text="Rutas por programar" level="H4" />
-
-                            <ComboBox 
-        id="comboFechaFiltro"
-        width="110px"
-        placeholder="Seleccionar Mes/Año"
-        selectionChange=".onFechaChange">
-        <items>
-            </items>
-    </ComboBox>
-
+                            <ComboBox id="comboFechaFiltro" width="110px" placeholder="Mes/Año" selectionChange=".onFechaChange" />
                             <ToolbarSpacer />
-                            <Button 
-                                id="btnSelectAll"
-                                icon="sap-icon://multiselect-all" 
-                                tooltip="Seleccionar Todo"
-                                press=".onSelectAll" />
-                            
-                            <Button 
-                                id="btnGenerarOrdenes"
-                                text="Generar Órdenes" 
-                                icon="sap-icon://Post" 
-                                type="Emphasized" 
-                                press=".onGenerarOrdenes"
-                                enabled="false" /> 
-                            <SearchField width="30%" search=".onSearchService" placeholder="Buscar..." />
+                            <Button id="btnSelectAll" icon="sap-icon://multiselect-all" press=".onSelectAll" />
+                            <Button id="btnGenerarOrdenes" text="Generar Órdenes" icon="sap-icon://Post" type="Emphasized" press=".onGenerarOrdenes" enabled="false" /> 
+                            <SearchField width="30%" placeholder="Buscar..." />
                         </Toolbar>
                         
-                        <ScrollContainer height="calc(100vh - 250px)" vertical="true" focusable="true">
-                            <List id="routeList" 
-                                mode="None"
-                                items="{
-                                    path: 'db>/ServicesRouteSet/results', 
-                                    sorter: [
-                                        {path: 'GroupKey', group: true, descending: false}, 
-                                        {path: 'CargaNum', descending: false}
-                                    ], 
-                                    groupHeaderFactory: '.getGroupHeader'
-                                }">
+                        <ScrollContainer height="calc(100vh - 250px)" vertical="true">
+                            <List id="routeList" items="{
+                                path: 'db>/ServicesRouteSet/results', 
+                                sorter: [{path: 'GroupKey', group: true}, {path: 'CargaNum'}], 
+                                groupHeaderFactory: '.getGroupHeader'
+                            }">
                                 <CustomListItem>
+                                    <!-- DATA PARA CSS: Pinta la fila si StatusSub4 tiene valor -->
+                                    <customData>
+                                        <core:CustomData key="bloqueado" value="{= ${db>StatusSub4} !== '' ? 'true' : 'false' }" writeToDom="true" />
+                                    </customData>
+
                                     <HBox justifyContent="SpaceBetween" alignItems="Center" class="sapUiTinyMargin">
-                                        <HBox alignItems="Center">
+                                        
+                                        <!-- COLUMNA INFO PRINCIPAL -->
+                                        <HBox alignItems="Start" width="55%">
                                             <Avatar displaySize="XS" initials="{db>CargaNum}" class="sapUiTinyMarginEnd" backgroundColor="Accent6" />
                                             <VBox>
                                                 <Text text="{db>Nombre}" fontWeight="Bold" />
                                                 <Text text="Eq: {db>Tipo} - {db>Equipo}" style="font-size: 0.85rem;" />
-                                                <Text text="Serie: {db>Serie}" fontWeight="Bold" color="#1C4D7D" />
-                                                <HBox visible="{= !!${db>Orden} }">
-                                                    <ObjectStatus text="Orden: {db>Orden}" state="Success" class="sapUiTinyMarginEnd" />
-                                                    <ObjectStatus text="{db>Mensaje}" state="{= ${db>Orden} ? 'Success' : 'Error'}" 
-                                                        visible="{= !!${db>Mensaje} }" />
-                                                </HBox>
-                                                <Text text="Niveles: {db>Niveles}" fontWeight="Bold" color="#1C4D7D" />
-                                                <Text text="Contrato: {db>Contrato} | Pos: {db>Posicion}" fontWeight="Bold" color="#1C4D7D" />
-                                                <Text text="Mecánico: {db>Mecanico}" fontWeight="Bold" color="#1C4D7D" />
-                                                <Text text="Ultima: {db>UltimaOrden}" fontWeight="Bold" color="#1C4D7D" />
-                                               <VBox class="sapUiTinyMarginTop">
-    <Text text="PROGRAMA DE MANTENIMIENTO ANUAL" fontWeight="Bold" color="#1C4D7D" />
-    
-    <Text 
-        text="{
-            path: 'db>Paquetes',
-            formatter: '.formatPaquetes'
-        }" 
-        style="font-size: 0.85rem;" 
-        color="#666666" />
-</VBox>
+                                                <Text text="Serie: {db>Serie}   |  Niveles: {path: 'db>Niveles', formatter: '.formatNiveles'}" style="font-size: 0.85rem;" fontWeight="Bold" color="#1C4D7D" />
+                                                
+                                                <!-- DESGLOSE DE STATUS PROCESADO -->
+                                                <VBox class="sapUiTinyMarginTopBottom">
+                                                    <Text text="Contrato: {db>Contrato} | Pos: {db>Posicion}" style="font-size: 0.85rem;" />
+                                                    <Text text="{db>StatusText}" fontWeight="Bold" color="#E67E22" />
+                                                    <HBox wrap="Wrap">
+                                                        <ObjectAttribute title="Tipo" text="{db>StatusSub1}" class="sapUiTinyMarginEnd" />
+                                                        <ObjectAttribute title="Frecuencia" text="{db>StatusSub2}" class="sapUiTinyMarginEnd" />
+                                                        <ObjectAttribute title="Días Servico" text="{db>StatusSub3}" />
+                                                    </HBox>
+                                                </VBox>
+
+                                                <Text text="Mecánico: {db>Mecanico}" style="font-size: 0.85rem;" />
+                                                <Text text="Ultima: {db>UltimaOrden}" style="font-size: 0.85rem;" />
                                             </VBox>
                                         </HBox>
 
-                                        <HBox alignItems="Center">
+                                        <!-- COLUMNA VIGENCIA Y BLOQUEO -->
+                                        <VBox width="30%" alignItems="Start">
+                                            <!-- INDICADOR DE BLOQUEO (StatusSub4) -->
+                                            <HBox alignItems="Center" class="sapUiTinyMarginBottom" visible="{= ${db>StatusSub4} !== '' }">
+                                                <core:Icon src="sap-icon://private" size="1.2rem" color="#bb0000" class="sapUiTinyMarginEnd" />
+                                                <Text text="Bloqueado por:{db>StatusSub4}" fontWeight="Bold" color="#bb0000" style="font-size: 0.85rem;" />
+                                            </HBox>
+
+                                            <Label text="Vigencia:" design="Bold" style="font-size: 0.75rem;" />
+                                            <HBox wrap="Wrap">
+                                                <Text text="{path: 'db>VigenciaIni', formatter: '.formatVigencia'}" style="font-size: 0.85rem;" />
+                                                <Text text=" - " style="font-size: 0.85rem;" class="sapUiTinyMarginBeginEnd" />
+                                                <Text text="{path: 'db>VigenciaFin', formatter: '.formatVigencia'}" style="font-size: 0.85rem;" />
+                                            </HBox>
+                                            
+                                            <HBox class="sapUiTinyMarginTop" alignItems="Center">
+                                                <core:Icon src="sap-icon://message-warning" color="#bb0000" size="0.9rem" visible="{= ${path: 'db>VigenciaFin', formatter: '.isExpired'} === true }" />
+                                                <Text text="Término" class="statusTermino" visible="{= ${path: 'db>VigenciaFin', formatter: '.isExpired'} === true }" />
+                                                
+                                                <core:Icon src="sap-icon://sys-enter-2" color="#2b7d2b" size="0.9rem" visible="{= ${path: 'db>VigenciaFin', formatter: '.isExpired'} === false }" />
+                                                <Text text="Vigente" class="statusVigente" visible="{= !${path: 'db>VigenciaFin', formatter: '.isExpired'} || ${path: 'db>VigenciaFin', formatter: '.isExpired'} === false }" />
+                                            </HBox>
+
+                                            <HBox visible="{= !!${db>Orden} }" class="sapUiTinyMarginTop">
+                                                <ObjectStatus text="Orden: {db>Orden}" state="Success" />
+                                            </HBox>
+                                        </VBox>
+
+                                        <!-- COLUMNA ACCIONES -->
+                                        <HBox alignItems="Center" width="15%" justifyContent="End">
                                             <VBox alignItems="End" class="sapUiSmallMarginEnd">
                                                 <Text text="{db>FechaFull}" fontWeight="Bold" />
                                                 <ObjectStatus text="{db>RankingTexto}" state="Indication05" />
                                             </VBox>
-                                            <CheckBox selected="{db>Selected}" select=".onSelectionChange" visible="{= !${db>Orden} }" />
+                                            <!-- CHECKBOX: Oculto si tiene orden, si está expirado o si StatusSub4 tiene valor -->
+                                            <CheckBox selected="{db>Selected}" select=".onSelectionChange" 
+                                                visible="{= !${db>Orden} &amp;&amp; ${path: 'db>VigenciaFin', formatter: '.isExpired'} !== true &amp;&amp; ${db>StatusSub4} === '' }" />
                                         </HBox>
+
                                     </HBox>
                                 </CustomListItem>
                             </List>
                         </ScrollContainer>
                     </VBox>
 
+                    <!-- CARGA DE TRABAJO -->
                     <VBox width="40%" style="border-left: 1px solid #e5e5e5;" class="sapUiSmallMargin">
-                        <Title text="Carga de Trabajo por Técnico" level="H4" class="sapUiSmallMarginBottom" />
-                        <List id="mechanicsList" items="{path: 'db>/MecanicosStats', sorter: {path: 'PorcentajeCarga', descending: true}}">
+                        <Title text="Carga de Trabajo" level="H4" class="sapUiSmallMarginBottom" />
+                        <List items="{path: 'db>/MecanicosStats', sorter: {path: 'PorcentajeCarga', descending: true}}">
                             <CustomListItem>
                                 <VBox class="sapUiSmallMargin">
                                     <HBox justifyContent="SpaceBetween">
                                         <Text text="{db>Nombre}" fontWeight="Bold" />
-                                        <Text text="{db>KmTotales} km totales" style="font-size: 0.85rem; color: #666;" />
+                                         <!-- <Text text="{db>KmTotales} km" style="font-size: 0.85rem;" />-->
                                     </HBox>
-                                    <ProgressIndicator 
-                                        percentValue="{db>PorcentajeCarga}" 
-                                        displayValue="{db>PorcentajeCarga}%" 
-                                        state="{path: 'db>PorcentajeCarga', formatter: '.formatProgressState'}" 
-                                        height="1.2rem"
-                                        class="sapUiTinyMarginTop" />
+                                    <ProgressIndicator percentValue="{db>PorcentajeCarga}" displayValue="{db>PorcentajeCarga}%" 
+                                        state="{path: 'db>PorcentajeCarga', formatter: '.formatProgressState'}" />
                                 </VBox>
                             </CustomListItem>
                         </List>
