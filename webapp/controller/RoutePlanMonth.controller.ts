@@ -14,6 +14,8 @@ import BusyDialog from "sap/m/BusyDialog";
 import Button from "sap/m/Button";
 import Item from "sap/ui/core/Item";
 import ComboBox from "sap/m/ComboBox";
+import SelectDialog from "sap/m/SelectDialog";
+import StandardListItem from "sap/m/StandardListItem";
 
 /**
  * @namespace routeplanningmantto.controller
@@ -21,6 +23,7 @@ import ComboBox from "sap/m/ComboBox";
 export default class RoutePlanMonth extends Controller {
 
     private _oBusyDialog: BusyDialog;
+    private _sSelectedSupervisorMail: string = "";
 
     public onInit(): void {
         const oRouter = UIComponent.getRouterFor(this);
@@ -29,7 +32,7 @@ export default class RoutePlanMonth extends Controller {
     }
 
     private _onRouteMatched(): void {
-        this._loadOData();
+        this._openSupervisorSelectDialog();
     }
 
     private _setupFechaComboBox(): void {
@@ -70,6 +73,84 @@ export default class RoutePlanMonth extends Controller {
         }
     }
 
+
+    private _openSupervisorSelectDialog(): void {
+    const oComponent = this.getOwnerComponent();
+    const oDataModel = oComponent?.getModel("ZCS_GET_EMPLOYE_SRV") as any;
+
+    if (!oDataModel) return;
+
+    BusyIndicator.show(0);
+
+    // Filtro para traer solo SUPERVISOR
+    const oFilter = new Filter("Puesto", FilterOperator.EQ, "SUPERVISOR");
+
+    oDataModel.read("/EmployesSet", {
+        filters: [oFilter],
+        success: (oData: any) => {
+            BusyIndicator.hide();
+            const aSupervisores = oData.results || [];
+            this._showSelectionDialog(aSupervisores);
+        },
+        error: (oError: any) => {
+            BusyIndicator.hide();
+            MessageBox.error("Error al cargar la lista de supervisores.");
+        }
+    });
+}
+
+private _showSelectionDialog(aSupervisores: any[]): void {
+    const oSelectDialog = new SelectDialog({
+        title: "Seleccione Supervisor",
+        // Habilitamos la búsqueda en más campos si lo deseas
+        items: aSupervisores.map(sup => {
+            // Concatenamos el nombre completo
+            const sNombreCompleto = `${sup.Nombre} ${sup.ApellidoP || ""} ${sup.ApellidoM || ""}`.trim();
+            
+            return new StandardListItem({
+                title: sNombreCompleto,
+                description: sup.Mail,
+                info: sup.Base, // Mostramos la Base en la parte derecha
+                infoState: "None", // Puedes usar "Success" para resaltar el texto de la base
+                type: "Active"
+            });
+        }),
+        search: (oEvent: any) => {
+            const sValue = oEvent.getParameter("value");
+            const oBinding = oEvent.getSource().getBinding("items");
+            
+            // Filtro múltiple para buscar por nombre o por base
+            const oFilterNombre = new Filter("title", FilterOperator.Contains, sValue);
+            const oFilterBase = new Filter("info", FilterOperator.Contains, sValue);
+            const oCombinedFilter = new Filter({
+                filters: [oFilterNombre, oFilterBase],
+                and: false // Para que busque en uno o en otro
+            });
+            
+            oBinding.filter(sValue ? [oCombinedFilter] : []);
+        },
+        confirm: (oEvent: any) => {
+            const oSelectedItem = oEvent.getParameter("selectedItem") as StandardListItem;
+            if (oSelectedItem) {
+                // Seguimos tomando el mail de la descripción
+                this._sSelectedSupervisorMail = oSelectedItem.getDescription();
+                this._loadOData();
+            }
+            oEvent.getSource().destroy();
+        },
+        cancel: (oEvent: any) => {
+            oEvent.getSource().destroy();
+            this.onNavBack();
+        }
+    });
+
+    this.getView()?.addDependent(oSelectDialog);
+    oSelectDialog.open("");
+}
+
+
+
+
     private _loadOData(sPeriodo?: string): void {
         const oComponent = this.getOwnerComponent();
         const oDataModel = oComponent?.getModel("db") as any;
@@ -81,7 +162,8 @@ export default class RoutePlanMonth extends Controller {
         const sFechaKey = sPeriodo || oComboBox.getSelectedKey(); 
 
         // Construimos la llave dinámica: Correo | YYYYMM
-        const sUserMail = "ldelacruz@melco.com.mx"; 
+        //const sUserMail = "ldelacruz@melco.com.mx"; 
+        const sUserMail = this._sSelectedSupervisorMail;
         const sDynamicKey = `${sUserMail}|${sFechaKey}`; 
 
         console.log("Cargando datos para la llave:", sDynamicKey);
@@ -125,6 +207,9 @@ export default class RoutePlanMonth extends Controller {
         const aServicios = oData.ServicesRouteSet?.results || [];
         const aMecanicos = oData.MechanicRouteSet?.results || [];
 
+        let iCountBloqueados = 0;
+        let iCountTermino = 0;
+
         aServicios.forEach((s: any) => {
             s.Cliente = s.Nombre || s.Cliente;
 
@@ -137,15 +222,12 @@ export default class RoutePlanMonth extends Controller {
                 s.StatusSub2 = aParts[2] || ""; 
                 s.StatusSub3 = aParts[3] || "";
                 
-                // Tomamos el valor del índice 4
                 let sRawSub4 = aParts[4] || "";
-                
-                // VALIDACIÓN CRÍTICA: 
-                // Si lo que llega es solo un guion "-" o está vacío, lo tratamos como vacío real.
                 if (sRawSub4 === "-" || sRawSub4 === "") {
                     s.StatusSub4 = "";
                 } else {
                     s.StatusSub4 = sRawSub4;
+                    iCountBloqueados++; // Contador de bloqueados
                 }
             } else {
                 s.StatusText = s.Status || "";
@@ -154,10 +236,11 @@ export default class RoutePlanMonth extends Controller {
 
             // --- LÓGICA DE BLOQUEO POR REGLAS DE NEGOCIO ---
             const bExpirado = this.isExpired(s.VigenciaFin) === true;
+            if (bExpirado) iCountTermino++; // Contador de término (expirados)
+
             const bBloqueadoStatus = s.StatusSub4 !== "";
             const bTieneOrden = !!s.Orden || !!s.UltimaOrden;
 
-            // Bloqueo preventivo: Solo entra si cumple condiciones
             if (bExpirado || bBloqueadoStatus || bTieneOrden) {
                 s.Selected = false;
             }
@@ -200,11 +283,12 @@ export default class RoutePlanMonth extends Controller {
         oModel.setProperty("/MecanicosStats", aStats);
         oModel.setProperty("/TotalEquipos", aServicios.length);
         oModel.setProperty("/TotalMecanicos", aMecanicos.length);
+        oModel.setProperty("/TotalBloqueados", iCountBloqueados);
+        oModel.setProperty("/TotalTermino", iCountTermino);
         
         oModel.refresh(true);
     }
 
-    // Formateador para el estado del ProgressIndicator (Rojo, Amarillo, Verde)
     public formatProgressState(iPercentage: any): string {
         const nValue = parseFloat(iPercentage);
         if (nValue >= 90) return "Error";
@@ -212,7 +296,6 @@ export default class RoutePlanMonth extends Controller {
         return "Success";
     }
 
-    // Factoría de cabeceras para la lista agrupada (Copiada de StrategicPlanning)
     public getGroupHeader(oGroup: any): GroupHeaderListItem {
         const aParts = oGroup.key.split(" | ");
         const sFechaRaw = aParts[0];
@@ -233,7 +316,6 @@ export default class RoutePlanMonth extends Controller {
         const oModel = this.getView()?.getModel("db") as JSONModel;
         const aTodosLosServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
         
-        // FILTRO DE SEGURIDAD ESTRICTO: Solo seleccionados que NO estén expirados y NO tengan bloqueo manual Sub4
         const aServiciosSeleccionados = aTodosLosServicios.filter((s: any) => 
             s.Selected === true && 
             this.isExpired(s.VigenciaFin) !== true &&
@@ -242,7 +324,6 @@ export default class RoutePlanMonth extends Controller {
 
         if (aServiciosSeleccionados.length === 0) return;
 
-        // VALIDACIÓN: ¿Hay equipos que ya tienen orden?
         const bHayOrdenesPrevias = aServiciosSeleccionados.some((s: any) => !!s.UltimaOrden || !!s.Orden);
 
         if (bHayOrdenesPrevias) {
@@ -253,7 +334,6 @@ export default class RoutePlanMonth extends Controller {
                     if (oAction === MessageBox.Action.YES) {
                         this._executeBatchCreation(aServiciosSeleccionados);
                     } else {
-                        // Si dice que NO, desmarcamos los flags y refrescamos
                         aTodosLosServicios.forEach((s: any) => s.Selected = false);
                         const oBtn = this.byId("btnGenerarOrdenes") as any;
                         if (oBtn) oBtn.setEnabled(false);
@@ -262,7 +342,6 @@ export default class RoutePlanMonth extends Controller {
                 }
             });
         } else {
-            // Si no hay previas, ejecutamos directo
             this._executeBatchCreation(aServiciosSeleccionados);
         }
     }
@@ -363,13 +442,11 @@ export default class RoutePlanMonth extends Controller {
         });
     }
 
-
     public onSelectionChange(): void {
         const oModel = this.getView()?.getModel("db") as JSONModel;
         const aServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
         const oBtn = this.byId("btnGenerarOrdenes") as Button;
 
-        // Verificar si hay alguno marcado en el modelo
         const bAnySelected = aServicios.some((s: any) => s.Selected === true);
         oBtn.setEnabled(bAnySelected);
     }
@@ -379,8 +456,6 @@ export default class RoutePlanMonth extends Controller {
         const aServicios = oModel.getProperty("/ServicesRouteSet/results") || [];
         const oBtnSelect = this.byId("btnSelectAll") as any;
         
-        // 1. Determinar si actualmente todos los elegibles están seleccionados
-        // (Elegibles = no tienen orden, no están vencidos y no tienen bloqueo por StatusSub4)
         const aElegibles = aServicios.filter((s: any) => {
             const bExpirado = this.isExpired(s.VigenciaFin);
             const bBloqueadoStatus = s.StatusSub4 && s.StatusSub4 !== "";
@@ -390,15 +465,10 @@ export default class RoutePlanMonth extends Controller {
         const bTodosElegiblesMarcados = aElegibles.length > 0 && aElegibles.every((s: any) => s.Selected === true);
         const bNuevoValor = !bTodosElegiblesMarcados;
 
-        // 2. Aplicar la selección solo a los que pasan la validación
         aServicios.forEach((s: any) => {
             const bExpirado = this.isExpired(s.VigenciaFin);
             const bBloqueadoStatus = s.StatusSub4 && s.StatusSub4 !== "";
             
-            // REGLA: Solo seleccionar si:
-            // - NO tiene orden previa
-            // - NO está vencido
-            // - NO tiene bloqueo manual (StatusSub4)
             if (!s.Orden && bExpirado !== true && !bBloqueadoStatus) {
                 s.Selected = bNuevoValor;
             } else {
@@ -406,7 +476,6 @@ export default class RoutePlanMonth extends Controller {
             }
         });
 
-        // 3. Actualizar UI
         oBtnSelect.setIcon(bNuevoValor ? "sap-icon://multiselect-none" : "sap-icon://multiselect-all");
         
         oModel.refresh(true);
@@ -432,7 +501,6 @@ export default class RoutePlanMonth extends Controller {
 
         return "Ciclos Programados: (" + sMesesTexto + ")";
     }
-
 
     public formatVigencia(sVigencia: string): string {
         if (!sVigencia || sVigencia.length < 6) {
@@ -477,10 +545,8 @@ export default class RoutePlanMonth extends Controller {
             iSelectedNum = parseInt(sYear + sMonth);
         }
 
-        const bIsExpired = iVigenciaNum < iSelectedNum;
-        return bIsExpired;
+        return iVigenciaNum < iSelectedNum;
     }
-
 
     public formatNiveles(sNiveles: string): string {
         if (!sNiveles) {

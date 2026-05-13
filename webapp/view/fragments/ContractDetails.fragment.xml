@@ -1,0 +1,47 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core">
+    <Dialog id="contractDetailsDialog" title="Expediente: Detalle de Contratos" contentWidth="950px" contentHeight="700px">
+        <content>
+            <VBox class="sapUiSmallMargin">
+                <Title text="Contratos del Cliente" level="H3" class="sapUiSmallMarginBottom" />
+                
+                <Table id="tableContractHeaders" mode="SingleSelectMaster" selectionChange=".onContractSelect">
+                    <columns>
+                        <Column><Text text="Contrato" /></Column>
+                        <Column><Text text="Descripción" /></Column>
+                        <Column><Text text="Referencia" /></Column>
+                        <Column><Text text="Estado" /></Column>
+                        <Column hAlign="End"><Text text="Acciones" /></Column>
+                    </columns>
+                    <items>
+                        <!-- Se bindea dinámicamente en el controlador -->
+                    </items>
+                </Table>
+
+                <!-- SUSTITUTO DEL DIVIDER: Usamos una Box con borde superior o un simple separador visual -->
+                <VBox class="sapUiMediumMarginTop" style="border-top: 1px solid #d9d9d9;">
+                    <!-- Espacio vacío opcional -->
+                </VBox>
+                
+                        <Title text="Ítems del Contrato Seleccionado" level="H3" class="sapUiSmallMarginBottom sapUiMediumMarginTop" />
+                
+                <Table id="tableContractItems">
+                    <columns>
+                        <Column><Text text="Posición" /></Column>
+                        <Column><Text text="Material/Servicio" /></Column>
+                        <Column><Text text="Cantidad" /></Column>
+                        <Column hAlign="End"><Text text="Programar" /></Column>
+                    </columns>
+                    <items>
+                        <!-- Se bindea al seleccionar un contrato arriba -->
+                    </items>
+                </Table>
+            </VBox>
+        </content>
+        <buttons>
+            <Button text="Descargar PDF" icon="sap-icon://pdf-attachment" press=".onExportPDF" />
+            <Button text="Cerrar" type="Transparent" press=".onCloseContractDetails" />
+        </buttons>
+    </Dialog>
+</core:FragmentDefinition>

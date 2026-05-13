@@ -16,12 +16,18 @@
                         <Title text="{db>/TotalEquipos}" titleStyle="H2" class="metricValue" />
                     </VBox>
                     <VBox class="metricCardSmall">
-                        <Text text="Distancia Total" class="metricLabel" />
-                        <Title text="{db>/TotalKm} km" titleStyle="H2" class="metricValue" />
-                    </VBox>
-                    <VBox class="metricCardSmall">
                         <Text text="Mec." class="metricLabel" />
                         <Title text="{db>/TotalMecanicos}" titleStyle="H2" class="metricValue" />
+                    </VBox>
+                    <!-- NUEVA TARJETA BLOQUEADOS -->
+                    <VBox class="metricCardSmall">
+                        <Text text="Bloqueados" class="metricLabel" />
+                        <Title text="{db>/TotalBloqueados}" titleStyle="H2" class="metricValue" color="Critical"/>
+                    </VBox>
+                    <!-- NUEVA TARJETA TÉRMINO -->
+                    <VBox class="metricCardSmall">
+                        <Text text="Término" class="metricLabel" />
+                        <Title text="{db>/TotalTermino}" titleStyle="H2" class="metricValue" color="Error"/>
                     </VBox>
                 </HBox>
 
@@ -44,14 +50,12 @@
                                 groupHeaderFactory: '.getGroupHeader'
                             }">
                                 <CustomListItem>
-                                    <!-- DATA PARA CSS: Pinta la fila si StatusSub4 tiene valor -->
                                     <customData>
                                         <core:CustomData key="bloqueado" value="{= ${db>StatusSub4} !== '' ? 'true' : 'false' }" writeToDom="true" />
                                     </customData>
 
                                     <HBox justifyContent="SpaceBetween" alignItems="Center" class="sapUiTinyMargin">
                                         
-                                        <!-- COLUMNA INFO PRINCIPAL -->
                                         <HBox alignItems="Start" width="55%">
                                             <Avatar displaySize="XS" initials="{db>CargaNum}" class="sapUiTinyMarginEnd" backgroundColor="Accent6" />
                                             <VBox>
@@ -59,7 +63,6 @@
                                                 <Text text="Eq: {db>Tipo} - {db>Equipo}" style="font-size: 0.85rem;" />
                                                 <Text text="Serie: {db>Serie}   |  Niveles: {path: 'db>Niveles', formatter: '.formatNiveles'}" style="font-size: 0.85rem;" fontWeight="Bold" color="#1C4D7D" />
                                                 
-                                                <!-- DESGLOSE DE STATUS PROCESADO -->
                                                 <VBox class="sapUiTinyMarginTopBottom">
                                                     <Text text="Contrato: {db>Contrato} | Pos: {db>Posicion}" style="font-size: 0.85rem;" />
                                                     <Text text="{db>StatusText}" fontWeight="Bold" color="#E67E22" />
@@ -75,9 +78,7 @@
                                             </VBox>
                                         </HBox>
 
-                                        <!-- COLUMNA VIGENCIA Y BLOQUEO -->
                                         <VBox width="30%" alignItems="Start">
-                                            <!-- INDICADOR DE BLOQUEO (StatusSub4) -->
                                             <HBox alignItems="Center" class="sapUiTinyMarginBottom" visible="{= ${db>StatusSub4} !== '' }">
                                                 <core:Icon src="sap-icon://private" size="1.2rem" color="#bb0000" class="sapUiTinyMarginEnd" />
                                                 <Text text="Bloqueado por:{db>StatusSub4}" fontWeight="Bold" color="#bb0000" style="font-size: 0.85rem;" />
@@ -103,13 +104,11 @@
                                             </HBox>
                                         </VBox>
 
-                                        <!-- COLUMNA ACCIONES -->
                                         <HBox alignItems="Center" width="15%" justifyContent="End">
                                             <VBox alignItems="End" class="sapUiSmallMarginEnd">
                                                 <Text text="{db>FechaFull}" fontWeight="Bold" />
                                                 <ObjectStatus text="{db>RankingTexto}" state="Indication05" />
                                             </VBox>
-                                            <!-- CHECKBOX: Oculto si tiene orden, si está expirado o si StatusSub4 tiene valor -->
                                             <CheckBox selected="{db>Selected}" select=".onSelectionChange" 
                                                 visible="{= !${db>Orden} &amp;&amp; ${path: 'db>VigenciaFin', formatter: '.isExpired'} !== true &amp;&amp; ${db>StatusSub4} === '' }" />
                                         </HBox>
@@ -128,7 +127,6 @@
                                 <VBox class="sapUiSmallMargin">
                                     <HBox justifyContent="SpaceBetween">
                                         <Text text="{db>Nombre}" fontWeight="Bold" />
-                                         <!-- <Text text="{db>KmTotales} km" style="font-size: 0.85rem;" />-->
                                     </HBox>
                                     <ProgressIndicator percentValue="{db>PorcentajeCarga}" displayValue="{db>PorcentajeCarga}%" 
                                         state="{path: 'db>PorcentajeCarga', formatter: '.formatProgressState'}" />

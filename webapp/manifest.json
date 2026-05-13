@@ -18,7 +18,25 @@
                 "odataVersion": "2.0",
                 "localUri": "localService/metadata.xml"
             }
+        },
+        "ZSD_CATALOGOS_SRV": {
+        "uri": "sap/opu/odata/sap/ZSD_CATALOGOS_SRV?sap-language=es",
+        "type": "OData",
+        "settings": {
+          "annotations": [],
+          "localUri": "localService/metadata.xml",
+          "odataVersion": "2.0"
         }
+      },
+       "ZCS_GET_EMPLOYE_SRV": {
+        "uri": "sap/opu/odata/sap/ZCS_GET_EMPLOYE_SRV?sap-language=es",
+        "type": "OData",
+        "settings": {
+          "annotations": [],
+          "localUri": "localService/metadata.xml",
+          "odataVersion": "2.0"
+        }
+      }
     },
     "sourceTemplate": {
       "id": "@sap/generator-fiori:basic",
@@ -86,7 +104,20 @@
         "settings": {
           "bundleName": "routeplanningmantto.i18n.i18n"
         }
-      }
+      },
+      "ZSD_CATALOGOS_SRV": {
+        "dataSource": "ZSD_CATALOGOS_SRV",
+        "preload": true,
+        "settings": {
+          "useBatch": true
+        }
+      },
+      "ZCS_GET_EMPLOYE_SRV": {
+        "dataSource": "ZCS_GET_EMPLOYE_SRV",
+        "preload": true,
+        "settings": {
+          "useBatch": true
+        }}
     },
     "resources": {
       "css": [
