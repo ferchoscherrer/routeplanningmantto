@@ -14,8 +14,6 @@ import BusyDialog from "sap/m/BusyDialog";
 import Button from "sap/m/Button";
 import Item from "sap/ui/core/Item";
 import ComboBox from "sap/m/ComboBox";
-import SelectDialog from "sap/m/SelectDialog";
-import StandardListItem from "sap/m/StandardListItem";
 
 /**
  * @namespace routeplanningmantto.controller
@@ -23,7 +21,6 @@ import StandardListItem from "sap/m/StandardListItem";
 export default class RoutePlanMonth extends Controller {
 
     private _oBusyDialog: BusyDialog;
-    private _sSelectedSupervisorMail: string = "";
 
     public onInit(): void {
         const oRouter = UIComponent.getRouterFor(this);
@@ -32,7 +29,7 @@ export default class RoutePlanMonth extends Controller {
     }
 
     private _onRouteMatched(): void {
-        this._openSupervisorSelectDialog();
+        this._loadOData();
     }
 
     private _setupFechaComboBox(): void {
@@ -73,84 +70,6 @@ export default class RoutePlanMonth extends Controller {
         }
     }
 
-
-    private _openSupervisorSelectDialog(): void {
-    const oComponent = this.getOwnerComponent();
-    const oDataModel = oComponent?.getModel("ZCS_GET_EMPLOYE_SRV") as any;
-
-    if (!oDataModel) return;
-
-    BusyIndicator.show(0);
-
-    // Filtro para traer solo SUPERVISOR
-    const oFilter = new Filter("Puesto", FilterOperator.EQ, "SUPERVISOR");
-
-    oDataModel.read("/EmployesSet", {
-        filters: [oFilter],
-        success: (oData: any) => {
-            BusyIndicator.hide();
-            const aSupervisores = oData.results || [];
-            this._showSelectionDialog(aSupervisores);
-        },
-        error: (oError: any) => {
-            BusyIndicator.hide();
-            MessageBox.error("Error al cargar la lista de supervisores.");
-        }
-    });
-}
-
-private _showSelectionDialog(aSupervisores: any[]): void {
-    const oSelectDialog = new SelectDialog({
-        title: "Seleccione Supervisor",
-        // Habilitamos la búsqueda en más campos si lo deseas
-        items: aSupervisores.map(sup => {
-            // Concatenamos el nombre completo
-            const sNombreCompleto = `${sup.Nombre} ${sup.ApellidoP || ""} ${sup.ApellidoM || ""}`.trim();
-            
-            return new StandardListItem({
-                title: sNombreCompleto,
-                description: sup.Mail,
-                info: sup.Base, // Mostramos la Base en la parte derecha
-                infoState: "None", // Puedes usar "Success" para resaltar el texto de la base
-                type: "Active"
-            });
-        }),
-        search: (oEvent: any) => {
-            const sValue = oEvent.getParameter("value");
-            const oBinding = oEvent.getSource().getBinding("items");
-            
-            // Filtro múltiple para buscar por nombre o por base
-            const oFilterNombre = new Filter("title", FilterOperator.Contains, sValue);
-            const oFilterBase = new Filter("info", FilterOperator.Contains, sValue);
-            const oCombinedFilter = new Filter({
-                filters: [oFilterNombre, oFilterBase],
-                and: false // Para que busque en uno o en otro
-            });
-            
-            oBinding.filter(sValue ? [oCombinedFilter] : []);
-        },
-        confirm: (oEvent: any) => {
-            const oSelectedItem = oEvent.getParameter("selectedItem") as StandardListItem;
-            if (oSelectedItem) {
-                // Seguimos tomando el mail de la descripción
-                this._sSelectedSupervisorMail = oSelectedItem.getDescription();
-                this._loadOData();
-            }
-            oEvent.getSource().destroy();
-        },
-        cancel: (oEvent: any) => {
-            oEvent.getSource().destroy();
-            this.onNavBack();
-        }
-    });
-
-    this.getView()?.addDependent(oSelectDialog);
-    oSelectDialog.open("");
-}
-
-
-
-
     private _loadOData(sPeriodo?: string): void {
         const oComponent = this.getOwnerComponent();
         const oDataModel = oComponent?.getModel("db") as any;
@@ -162,8 +81,7 @@ private _showSelectionDialog(aSupervisores: any[]): void {
         const sFechaKey = sPeriodo || oComboBox.getSelectedKey(); 
 
         // Construimos la llave dinámica: Correo | YYYYMM
-        //const sUserMail = "ldelacruz@melco.com.mx"; 
-        const sUserMail = this._sSelectedSupervisorMail;
+        const sUserMail = "ldelacruz@melco.com.mx"; 
         const sDynamicKey = `${sUserMail}|${sFechaKey}`; 
 
         console.log("Cargando datos para la llave:", sDynamicKey);
